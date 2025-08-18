@@ -1,154 +1,166 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import Link from 'next/link'
-import PhotoUpload from '@/components/PhotoUpload'
 import WebcamCapture from '@/components/WebcamCapture'
-
-type TabType = 'upload' | 'webcam'
+import PhotoUpload from '@/components/PhotoUpload'
 
 export default function NewProjectPage() {
-  const [activeTab, setActiveTab] = useState<TabType>('upload')
   const [selectedPhoto, setSelectedPhoto] = useState<File | null>(null)
+  const [photoMethod, setPhotoMethod] = useState<'webcam' | 'upload'>('webcam')
+  const [isProcessing, setIsProcessing] = useState(false)
   const router = useRouter()
 
-  const handlePhotoSelected = (photo: File) => {
-    setSelectedPhoto(photo)
-  }
-
-  const handleContinue = async () => {
-    if (!selectedPhoto) return
-    
-    // Create a new project ID
-    const projectId = `project_${Date.now()}`
-    
-    // Store photo in IndexedDB (simplified for demo)
-    const reader = new FileReader()
-    reader.onload = () => {
-      try {
-        localStorage.setItem(`photo_${projectId}`, reader.result as string)
-        router.push(`/editor/${projectId}`)
-      } catch (error) {
-        console.error('Error storing photo:', error)
-      }
+  const handlePhotoSelected = useCallback(async (photo: File | null) => {
+    if (!photo) {
+      setSelectedPhoto(null)
+      return
     }
-    reader.readAsDataURL(selectedPhoto)
-  }
+
+    setSelectedPhoto(photo)
+  }, [])
+
+  const handleContinue = useCallback(async () => {
+    if (!selectedPhoto) return
+
+    setIsProcessing(true)
+
+    try {
+      // Generate unique project ID
+      const projectId = `project_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+      
+      // Convert file to data URL for storage
+      const reader = new FileReader()
+      reader.onload = async (e) => {
+        if (e.target?.result) {
+          try {
+            // Store photo data in localStorage
+            const photoDataUrl = e.target.result as string
+            localStorage.setItem(`photo_${projectId}`, photoDataUrl)
+            
+            // Store photo metadata
+            const photoMetadata = {
+              id: `photo_${projectId}`,
+              source: photoMethod,
+              filename: selectedPhoto.name,
+              size: selectedPhoto.size,
+              type: selectedPhoto.type,
+              capturedAt: new Date().toISOString(),
+              width: 0, // Will be determined when loading in editor
+              height: 0
+            }
+            localStorage.setItem(`photo_metadata_${projectId}`, JSON.stringify(photoMetadata))
+            
+            // Navigate to editor
+            router.push(`/editor/${projectId}`)
+          } catch (error) {
+            console.error('Error storing photo:', error)
+            alert('Failed to save photo. Please try again.')
+            setIsProcessing(false)
+          }
+        }
+      }
+      reader.onerror = () => {
+        console.error('Error reading file')
+        alert('Failed to process photo. Please try again.')
+        setIsProcessing(false)
+      }
+      
+      reader.readAsDataURL(selectedPhoto)
+    } catch (error) {
+      console.error('Error processing photo:', error)
+      alert('Failed to process photo. Please try again.')
+      setIsProcessing(false)
+    }
+  }, [selectedPhoto, photoMethod, router])
 
   return (
     <div className="min-h-screen bg-studio-darker">
-      {/* Navigation */}
-      <nav className="border-b border-studio-gray">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between h-16">
-            <div className="flex items-center">
-              <Link href="/" className="flex items-center space-x-2">
-                <div className="w-8 h-8 bg-studio-accent rounded-lg flex items-center justify-center">
-                  <span className="text-white font-bold text-lg">M</span>
-                </div>
-                <span className="text-xl font-bold text-white">MakeupStudio</span>
-              </Link>
-            </div>
-            
+      {/* Header */}
+      <div className="border-b border-studio-gray">
+        <div className="max-w-4xl mx-auto px-6 py-4">
+          <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
-              <Link 
-                href="/" 
-                className="text-gray-300 hover:text-white transition-colors duration-200"
+              <button
+                onClick={() => router.push('/')}
+                className="text-gray-300 hover:text-white transition-colors"
               >
-                Back
-              </Link>
+                ← Back
+              </button>
+              <h1 className="text-xl font-bold text-white">New Project</h1>
             </div>
           </div>
         </div>
-      </nav>
+      </div>
 
       {/* Main Content */}
-      <div className="max-w-4xl mx-auto px-4 py-12">
+      <div className="max-w-2xl mx-auto px-6 py-12">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-white mb-4">Choose your photo</h1>
-          <p className="text-gray-400 max-w-2xl mx-auto">
-            Upload a selfie or capture one with your webcam to start practicing makeup techniques. 
-            For best results, use good lighting and face the camera directly.
+          <h2 className="text-2xl font-bold text-white mb-2">Add a Photo</h2>
+          <p className="text-gray-400">
+            Upload an existing selfie or take a new one with your camera
           </p>
         </div>
 
-        {/* Tab Navigation */}
-        <div className="flex justify-center mb-8">
-          <div className="bg-studio-dark rounded-lg p-1 border border-studio-gray">
-            <button
-              onClick={() => setActiveTab('upload')}
-              className={`px-6 py-3 rounded-md text-sm font-medium transition-colors duration-200 ${
-                activeTab === 'upload'
-                  ? 'bg-studio-accent text-white'
-                  : 'text-gray-300 hover:text-white'
-              }`}
-            >
-              Upload
-            </button>
-            <button
-              onClick={() => setActiveTab('webcam')}
-              className={`px-6 py-3 rounded-md text-sm font-medium transition-colors duration-200 ${
-                activeTab === 'webcam'
-                  ? 'bg-studio-accent text-white'
-                  : 'text-gray-300 hover:text-white'
-              }`}
-            >
-              Webcam
-            </button>
-          </div>
+        {/* Photo Method Tabs */}
+        <div className="flex bg-studio-dark rounded-lg p-1 mb-8">
+          <button
+            onClick={() => {
+              setPhotoMethod('webcam')
+              setSelectedPhoto(null)
+            }}
+            className={`flex-1 py-3 px-4 rounded-md text-sm font-medium transition-colors ${
+              photoMethod === 'webcam'
+                ? 'bg-studio-gray text-white'
+                : 'text-gray-400 hover:text-white'
+            }`}
+          >
+            📹 Use Camera
+          </button>
+          <button
+            onClick={() => {
+              setPhotoMethod('upload')
+              setSelectedPhoto(null)
+            }}
+            className={`flex-1 py-3 px-4 rounded-md text-sm font-medium transition-colors ${
+              photoMethod === 'upload'
+                ? 'bg-studio-gray text-white'
+                : 'text-gray-400 hover:text-white'
+            }`}
+          >
+            📁 Upload Photo
+          </button>
         </div>
 
-        {/* Tab Content */}
-        <div className="bg-studio-dark rounded-lg border border-studio-gray p-8">
-          {activeTab === 'upload' && (
-            <div>
-              <div className="text-center mb-6">
-                <p className="text-gray-400">JPG, PNG, or WebP. Minimum 800px wide.</p>
-              </div>
-              <PhotoUpload 
-                onPhotoSelected={handlePhotoSelected}
-                selectedPhoto={selectedPhoto}
-              />
-            </div>
-          )}
-          
-          {activeTab === 'webcam' && (
-            <div>
-              <div className="text-center mb-6">
-                <p className="text-gray-400">Good lighting, face centered, neutral expression.</p>
-              </div>
-              <WebcamCapture 
-                onPhotoSelected={handlePhotoSelected}
-                selectedPhoto={selectedPhoto}
-              />
-            </div>
+        {/* Photo Capture/Upload */}
+        <div className="bg-studio-dark rounded-lg p-8 mb-8">
+          {photoMethod === 'webcam' ? (
+            <WebcamCapture 
+              onPhotoSelected={handlePhotoSelected}
+              selectedPhoto={selectedPhoto}
+            />
+          ) : (
+            <PhotoUpload 
+              onPhotoSelected={handlePhotoSelected}
+              selectedPhoto={selectedPhoto}
+            />
           )}
         </div>
 
         {/* Continue Button */}
         {selectedPhoto && (
-          <div className="flex justify-center mt-8">
+          <div className="text-center">
             <button
               onClick={handleContinue}
-              className="studio-button text-lg px-8 py-3"
+              disabled={isProcessing}
+              className={`studio-button text-lg px-8 py-4 ${
+                isProcessing ? 'opacity-50 cursor-not-allowed' : ''
+              }`}
             >
-              Continue to Editor
+              {isProcessing ? 'Processing...' : 'Continue to Editor'}
             </button>
           </div>
         )}
-
-        {/* Helper Tips */}
-        <div className="mt-12 p-6 bg-studio-dark rounded-lg border border-studio-gray">
-          <h3 className="text-white font-medium mb-4">Tips for best results:</h3>
-          <ul className="space-y-2 text-gray-400">
-            <li>• Remove glasses for better landmark detection</li>
-            <li>• Use even lighting - avoid harsh shadows</li>
-            <li>• Face the camera directly with a neutral expression</li>
-            <li>• Keep hair away from your face</li>
-            <li>• Minimum 800px width for crisp results</li>
-          </ul>
-        </div>
       </div>
     </div>
   )

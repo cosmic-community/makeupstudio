@@ -78,7 +78,7 @@ export default function WebcamCapture({ onPhotoSelected, selectedPhoto }: Webcam
     setVideoReady(true)
   }, [])
 
-  const takePhoto = useCallback(() => {
+  const takePhoto = useCallback(async () => {
     if (!videoRef.current || !canvasRef.current || !videoReady) return
 
     const video = videoRef.current
@@ -87,21 +87,35 @@ export default function WebcamCapture({ onPhotoSelected, selectedPhoto }: Webcam
     
     if (!context) return
 
-    // Set canvas dimensions to match video
-    canvas.width = video.videoWidth
-    canvas.height = video.videoHeight
+    setCapturing(true)
 
-    // Draw the video frame to canvas
-    context.drawImage(video, 0, 0)
+    try {
+      // Set canvas dimensions to match video
+      canvas.width = video.videoWidth
+      canvas.height = video.videoHeight
 
-    // Convert canvas to blob
-    canvas.toBlob((blob) => {
+      // Draw the video frame to canvas
+      context.drawImage(video, 0, 0)
+
+      // Convert canvas to blob with higher quality
+      const blob = await new Promise<Blob | null>((resolve) => {
+        canvas.toBlob(resolve, 'image/jpeg', 0.95)
+      })
+
       if (blob) {
-        const file = new File([blob], 'webcam-selfie.jpg', { type: 'image/jpeg' })
+        const file = new File([blob], `webcam-selfie-${Date.now()}.jpg`, { 
+          type: 'image/jpeg',
+          lastModified: Date.now()
+        })
         onPhotoSelected(file)
         stopCamera()
       }
-    }, 'image/jpeg', 0.9)
+    } catch (error) {
+      console.error('Error taking photo:', error)
+      setError('Failed to capture photo. Please try again.')
+    } finally {
+      setCapturing(false)
+    }
   }, [onPhotoSelected, stopCamera, videoReady])
 
   const retakePhoto = useCallback(() => {
@@ -133,9 +147,11 @@ export default function WebcamCapture({ onPhotoSelected, selectedPhoto }: Webcam
     return (
       <div className="space-y-6">
         <div className="relative bg-studio-darker rounded-lg overflow-hidden">
-          {loading && (
+          {(loading || capturing) && (
             <div className="absolute inset-0 bg-studio-darker bg-opacity-75 flex items-center justify-center z-10">
-              <div className="text-white">Loading camera...</div>
+              <div className="text-white">
+                {capturing ? 'Capturing photo...' : 'Loading camera...'}
+              </div>
             </div>
           )}
           <video
@@ -148,7 +164,7 @@ export default function WebcamCapture({ onPhotoSelected, selectedPhoto }: Webcam
             className="w-full h-auto"
             style={{ display: videoReady ? 'block' : 'none' }}
           />
-          {!videoReady && !loading && (
+          {!videoReady && !loading && !capturing && (
             <div className="w-full h-64 bg-studio-darker flex items-center justify-center">
               <div className="text-gray-400">Initializing camera...</div>
             </div>
@@ -166,13 +182,14 @@ export default function WebcamCapture({ onPhotoSelected, selectedPhoto }: Webcam
           <div className="flex gap-4 justify-center">
             <button
               onClick={takePhoto}
-              disabled={!videoReady}
-              className={`studio-button ${!videoReady ? 'opacity-50 cursor-not-allowed' : ''}`}
+              disabled={!videoReady || capturing}
+              className={`studio-button ${(!videoReady || capturing) ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
-              Take Photo
+              {capturing ? 'Capturing...' : 'Take Photo'}
             </button>
             <button
               onClick={stopCamera}
+              disabled={capturing}
               className="studio-button-secondary"
             >
               Cancel

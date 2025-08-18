@@ -21,27 +21,56 @@ export default function EditorPage({ params }: EditorPageProps) {
   useEffect(() => {
     const loadProject = async () => {
       try {
-        // Try to load existing project from localStorage
-        const savedProject = localStorage.getItem(`project_${id}`)
-        const photoData = localStorage.getItem(`photo_${id}`)
+        // Try to load photo data and metadata from localStorage
+        const photoDataUrl = localStorage.getItem(`photo_${id}`)
+        const photoMetadataStr = localStorage.getItem(`photo_metadata_${id}`)
         
-        if (!photoData) {
-          setError('No photo found for this project')
+        if (!photoDataUrl) {
+          setError('No photo found for this project. Please start a new project.')
           return
+        }
+
+        // Parse photo metadata or create default
+        let photoMetadata
+        if (photoMetadataStr) {
+          photoMetadata = JSON.parse(photoMetadataStr)
+        } else {
+          photoMetadata = {
+            id: `photo_${id}`,
+            source: 'upload',
+            filename: 'photo.jpg',
+            size: 0,
+            type: 'image/jpeg',
+            capturedAt: new Date().toISOString(),
+            width: 800,
+            height: 600
+          }
+        }
+
+        // Determine image dimensions if not available
+        if (photoMetadata.width === 0 || photoMetadata.height === 0) {
+          const img = new Image()
+          img.onload = () => {
+            photoMetadata.width = img.width
+            photoMetadata.height = img.height
+            localStorage.setItem(`photo_metadata_${id}`, JSON.stringify(photoMetadata))
+          }
+          img.src = photoDataUrl
         }
 
         // Create photo object
         const newPhoto: Photo = {
-          id: `photo_${id}`,
-          source: 'upload',
-          blobRef: photoData,
-          width: 800,
-          height: 600,
-          capturedAt: new Date().toISOString()
+          id: photoMetadata.id,
+          source: photoMetadata.source || 'upload',
+          blobRef: photoDataUrl,
+          width: photoMetadata.width || 800,
+          height: photoMetadata.height || 600,
+          capturedAt: photoMetadata.capturedAt
         }
         setPhoto(newPhoto)
 
-        // Load or create project
+        // Try to load existing project from localStorage
+        const savedProject = localStorage.getItem(`project_${id}`)
         if (savedProject) {
           const parsedProject = JSON.parse(savedProject) as Project
           setProject(parsedProject)
@@ -60,7 +89,7 @@ export default function EditorPage({ params }: EditorPageProps) {
         }
       } catch (err) {
         console.error('Error loading project:', err)
-        setError('Failed to load project')
+        setError('Failed to load project. The photo data may be corrupted.')
       } finally {
         setLoading(false)
       }
@@ -94,18 +123,26 @@ export default function EditorPage({ params }: EditorPageProps) {
   if (error) {
     return (
       <div className="min-h-screen bg-studio-darker flex items-center justify-center">
-        <div className="text-center">
+        <div className="text-center max-w-md mx-auto px-6">
           <div className="w-16 h-16 bg-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
             <span className="text-white font-bold text-xl">!</span>
           </div>
           <h2 className="text-xl font-bold text-white mb-2">Error Loading Project</h2>
           <p className="text-gray-400 mb-6">{error}</p>
-          <button 
-            onClick={handleBack}
-            className="studio-button"
-          >
-            Back to Home
-          </button>
+          <div className="flex gap-4 justify-center">
+            <button 
+              onClick={handleBack}
+              className="studio-button"
+            >
+              Back to Home
+            </button>
+            <button 
+              onClick={() => router.push('/new')}
+              className="studio-button-secondary"
+            >
+              Start New Project
+            </button>
+          </div>
         </div>
       </div>
     )
@@ -114,15 +151,25 @@ export default function EditorPage({ params }: EditorPageProps) {
   if (!project || !photo) {
     return (
       <div className="min-h-screen bg-studio-darker flex items-center justify-center">
-        <div className="text-center">
+        <div className="text-center max-w-md mx-auto px-6">
           <h2 className="text-xl font-bold text-white mb-2">Project Not Found</h2>
-          <p className="text-gray-400 mb-6">The project you're looking for doesn't exist.</p>
-          <button 
-            onClick={handleBack}
-            className="studio-button"
-          >
-            Back to Home
-          </button>
+          <p className="text-gray-400 mb-6">
+            The project you're looking for doesn't exist or the data is corrupted.
+          </p>
+          <div className="flex gap-4 justify-center">
+            <button 
+              onClick={handleBack}
+              className="studio-button"
+            >
+              Back to Home
+            </button>
+            <button 
+              onClick={() => router.push('/new')}
+              className="studio-button-secondary"
+            >
+              Start New Project
+            </button>
+          </div>
         </div>
       </div>
     )
