@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
+import LoadingProgress from './LoadingProgress'
 import type { Project, Photo, Layer } from '@/types'
 
 interface MakeupEditorProps {
@@ -21,10 +22,13 @@ export default function MakeupEditor({
   const [currentTool, setCurrentTool] = useState<'brush' | 'eraser' | 'dropper'>('brush')
   const [isLoading, setIsLoading] = useState(true)
   const [calibrationNeeded, setCalibrationNeeded] = useState(true)
+  const [editorReady, setEditorReady] = useState(false)
 
   // Load photo and initialize canvas
   useEffect(() => {
     const loadPhoto = async () => {
+      if (!editorReady) return
+      
       try {
         const img = new Image()
         img.onload = () => {
@@ -41,16 +45,28 @@ export default function MakeupEditor({
           // Draw the photo
           ctx.drawImage(img, 0, 0)
           
+          // Small delay to ensure everything is properly loaded
+          setTimeout(() => {
+            setIsLoading(false)
+          }, 300)
+        }
+        img.onerror = () => {
+          console.error('Error loading photo')
           setIsLoading(false)
         }
         img.src = photo.blobRef
       } catch (error) {
         console.error('Error loading photo:', error)
+        setIsLoading(false)
       }
     }
 
     loadPhoto()
-  }, [photo])
+  }, [photo, editorReady])
+
+  const handleLoadingComplete = () => {
+    setEditorReady(true)
+  }
 
   const handleRunDetection = () => {
     setCalibrationNeeded(false)
@@ -67,16 +83,20 @@ export default function MakeupEditor({
     onProjectUpdate(updatedProject)
   }
 
-  if (isLoading) {
+  // Show loading screen until editor is ready
+  if (!editorReady || isLoading) {
     return (
-      <div className="min-h-screen bg-studio-darker flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-16 h-16 bg-studio-accent rounded-full flex items-center justify-center mx-auto mb-4 animate-pulse-soft">
-            <span className="text-white font-bold text-xl">🎨</span>
-          </div>
-          <p className="text-white">Loading your photo...</p>
-        </div>
-      </div>
+      <LoadingProgress 
+        onComplete={handleLoadingComplete}
+        stages={[
+          { name: "Loading your photo...", duration: 1200 },
+          { name: "Initializing canvas...", duration: 900 },
+          { name: "Setting up drawing tools...", duration: 700 },
+          { name: "Preparing color palette...", duration: 600 },
+          { name: "Loading brush presets...", duration: 500 },
+          { name: "Final touches...", duration: 400 }
+        ]}
+      />
     )
   }
 
