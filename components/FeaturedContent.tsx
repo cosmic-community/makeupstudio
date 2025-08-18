@@ -110,7 +110,7 @@ export default function FeaturedContent({ lessons, presets, gallery }: FeaturedC
             <div className="space-y-4">
               {gallery.slice(0, 1).map((showcase) => (
                 <div key={showcase.id}>
-                  {showcase.metadata.featured_images && showcase.metadata.featured_images.length > 0 && (
+                  {showcase.metadata.featured_images && showcase.metadata.featured_images.length > 0 && showcase.metadata.featured_images[0] && (
                     <div className="mb-4">
                       <img
                         src={`${showcase.metadata.featured_images[0].imgix_url}?w=400&h=300&fit=crop&auto=format,compress`}
