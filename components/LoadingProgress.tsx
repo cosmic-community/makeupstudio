@@ -23,20 +23,17 @@ export default function LoadingProgress({
 
   useEffect(() => {
     let progressTimer: NodeJS.Timeout
-    let stageTimer: NodeJS.Timeout | undefined = undefined
     
     const totalDuration = stages.reduce((total, stage) => total + stage.duration, 0)
     let elapsedTime = 0
     
     const updateProgress = () => {
-      const increment = 100 / (totalDuration / 50) // Update every 50ms
-      
       progressTimer = setInterval(() => {
         elapsedTime += 50
         const newProgress = Math.min((elapsedTime / totalDuration) * 100, 100)
         setProgress(newProgress)
         
-        // Update stage based on elapsed time
+        // Update stage based on elapsed time - fix bounds checking
         let cumulativeTime = 0
         let newStageIndex = 0
         
@@ -46,21 +43,29 @@ export default function LoadingProgress({
             newStageIndex = i
             break
           }
-          newStageIndex = i + 1
+          // If we've passed all stages, stay at the last stage
+          newStageIndex = Math.min(i, stages.length - 1)
         }
         
-        // Fix: Add proper bounds checking and null safety - ensure index is valid and stage exists
+        // Update stage name with proper bounds checking
         if (newStageIndex !== currentStage && newStageIndex < stages.length) {
-          const currentStageData = stages[newStageIndex]
-          if (currentStageData) {
+          const stageData = stages[newStageIndex]
+          if (stageData) {
             setCurrentStage(newStageIndex)
-            setCurrentStageName(currentStageData.name)
+            setCurrentStageName(stageData.name)
           }
         }
         
         // Complete when progress reaches 100%
         if (newProgress >= 100) {
           clearInterval(progressTimer)
+          // Ensure we're on the final stage
+          const finalStage = stages[stages.length - 1]
+          if (finalStage) {
+            setCurrentStage(stages.length - 1)
+            setCurrentStageName(finalStage.name)
+          }
+          // Add a small delay before completing
           setTimeout(() => {
             onComplete()
           }, 200)
@@ -68,11 +73,13 @@ export default function LoadingProgress({
       }, 50)
     }
     
+    // Start the progress immediately
     updateProgress()
     
     return () => {
-      if (progressTimer) clearInterval(progressTimer)
-      if (stageTimer) clearTimeout(stageTimer)
+      if (progressTimer) {
+        clearInterval(progressTimer)
+      }
     }
   }, [onComplete, stages, currentStage])
 

@@ -27,16 +27,28 @@ export default function MakeupEditor({
   // Load photo and initialize canvas
   useEffect(() => {
     const loadPhoto = async () => {
-      if (!editorReady) return
+      if (!photo?.blobRef) {
+        console.error('No photo blobRef available')
+        setIsLoading(false)
+        return
+      }
       
       try {
         const img = new Image()
         img.onload = () => {
           const canvas = canvasRef.current
-          if (!canvas) return
+          if (!canvas) {
+            console.error('Canvas ref not available')
+            setIsLoading(false)
+            return
+          }
 
           const ctx = canvas.getContext('2d')
-          if (!ctx) return
+          if (!ctx) {
+            console.error('Canvas context not available')
+            setIsLoading(false)
+            return
+          }
 
           // Set canvas size
           canvas.width = img.width
@@ -45,27 +57,35 @@ export default function MakeupEditor({
           // Draw the photo
           ctx.drawImage(img, 0, 0)
           
-          // Small delay to ensure everything is properly loaded
-          setTimeout(() => {
-            setIsLoading(false)
-          }, 300)
+          console.log('Photo loaded successfully, canvas initialized')
         }
-        img.onerror = () => {
-          console.error('Error loading photo')
+        
+        img.onerror = (error) => {
+          console.error('Error loading photo:', error)
           setIsLoading(false)
         }
+        
+        // Set the image source
         img.src = photo.blobRef
       } catch (error) {
-        console.error('Error loading photo:', error)
+        console.error('Error in loadPhoto:', error)
         setIsLoading(false)
       }
     }
 
-    loadPhoto()
+    // Only load photo after editor is ready
+    if (editorReady) {
+      loadPhoto()
+    }
   }, [photo, editorReady])
 
   const handleLoadingComplete = () => {
+    console.log('Loading progress completed, setting editor ready')
     setEditorReady(true)
+    // Small delay to ensure photo loading completes
+    setTimeout(() => {
+      setIsLoading(false)
+    }, 500)
   }
 
   const handleRunDetection = () => {
@@ -83,7 +103,7 @@ export default function MakeupEditor({
     onProjectUpdate(updatedProject)
   }
 
-  // Show loading screen until editor is ready
+  // Show loading screen until editor is ready and photo is loaded
   if (!editorReady || isLoading) {
     return (
       <LoadingProgress 
