@@ -50,12 +50,10 @@ export default function LoadingProgress({
         }
         
         // Fix: Add proper bounds checking and null safety - ensure index is valid and stage exists
-        if (newStageIndex !== currentStage && newStageIndex < stages.length) {
+        if (newStageIndex !== currentStage && newStageIndex < stages.length && stages[newStageIndex]) {
           const currentStageData = stages[newStageIndex]
-          if (currentStageData) {
-            setCurrentStage(newStageIndex)
-            setCurrentStageName(currentStageData.name)
-          }
+          setCurrentStage(newStageIndex)
+          setCurrentStageName(currentStageData.name)
         }
         
         // Complete when progress reaches 100%
