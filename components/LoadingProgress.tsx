@@ -41,7 +41,7 @@ export default function LoadingProgress({
         let newStageIndex = 0
         
         for (let i = 0; i < stages.length; i++) {
-          cumulativeTime += stages[i].duration
+          cumulativeTime += stages[i]?.duration || 0
           if (elapsedTime < cumulativeTime) {
             newStageIndex = i
             break
@@ -50,10 +50,12 @@ export default function LoadingProgress({
         }
         
         // Fix: Add proper bounds checking and null safety - ensure index is valid and stage exists
-        if (newStageIndex !== currentStage && newStageIndex < stages.length && stages[newStageIndex]) {
+        if (newStageIndex !== currentStage && newStageIndex < stages.length) {
           const currentStageData = stages[newStageIndex]
-          setCurrentStage(newStageIndex)
-          setCurrentStageName(currentStageData.name)
+          if (currentStageData) {
+            setCurrentStage(newStageIndex)
+            setCurrentStageName(currentStageData.name)
+          }
         }
         
         // Complete when progress reaches 100%
