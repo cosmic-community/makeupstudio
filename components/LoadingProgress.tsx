@@ -49,6 +49,7 @@ export default function LoadingProgress({
           newStageIndex = i + 1
         }
         
+        // Fix: Add proper bounds checking and null safety
         if (newStageIndex !== currentStage && newStageIndex < stages.length && stages[newStageIndex]) {
           setCurrentStage(newStageIndex)
           setCurrentStageName(stages[newStageIndex].name)
