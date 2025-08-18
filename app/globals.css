@@ -1,0 +1,93 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+    --primary: 217.2 91.2% 59.8%;
+    --primary-foreground: 222.2 84% 4.9%;
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 217.2 91.2% 59.8%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+}
+
+@layer components {
+  .canvas-container {
+    @apply relative bg-studio-darker border border-studio-gray rounded-lg overflow-hidden;
+    aspect-ratio: 4/3;
+  }
+  
+  .tool-button {
+    @apply w-10 h-10 flex items-center justify-center rounded-lg border border-studio-gray bg-studio-dark hover:bg-studio-gray-light transition-colors duration-200;
+  }
+  
+  .tool-button.active {
+    @apply bg-studio-accent border-studio-accent-light;
+  }
+  
+  .slider-thumb {
+    @apply w-4 h-4 bg-white border-2 border-studio-accent rounded-full shadow-sm cursor-pointer;
+  }
+  
+  .layer-item {
+    @apply flex items-center gap-2 p-2 bg-studio-gray rounded-lg border border-studio-gray-light hover:bg-studio-gray-light transition-colors duration-200;
+  }
+  
+  .blend-mode-select {
+    @apply bg-studio-dark border border-studio-gray rounded px-2 py-1 text-sm text-white;
+  }
+  
+  .toolbar-panel {
+    @apply bg-studio-dark border border-studio-gray rounded-lg p-4;
+  }
+  
+  .color-swatch {
+    @apply w-8 h-8 rounded border-2 border-studio-gray cursor-pointer hover:border-studio-gray-light transition-colors duration-200;
+  }
+  
+  .lesson-card {
+    @apply bg-studio-dark border border-studio-gray rounded-lg p-4 hover:border-studio-gray-light transition-colors duration-300;
+  }
+  
+  .preset-card {
+    @apply bg-studio-dark border border-studio-gray rounded-lg overflow-hidden hover:border-studio-gray-light transition-colors duration-300;
+  }
+}
+
+@layer utilities {
+  .text-shadow {
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+  }
+  
+  .glass-effect {
+    @apply backdrop-blur-sm bg-black/20 border border-white/10;
+  }
+  
+  .studio-button {
+    @apply bg-studio-accent hover:bg-studio-accent-light text-white font-medium px-4 py-2 rounded-lg transition-colors duration-200;
+  }
+  
+  .studio-button-secondary {
+    @apply bg-studio-gray hover:bg-studio-gray-light text-white font-medium px-4 py-2 rounded-lg transition-colors duration-200;
+  }
+}
