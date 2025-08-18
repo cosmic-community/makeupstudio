@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 
 interface WebcamCaptureProps {
   onPhotoSelected: (photo: File) => void
@@ -10,28 +10,59 @@ interface WebcamCaptureProps {
 export default function WebcamCapture({ onPhotoSelected, selectedPhoto }: WebcamCaptureProps) {
   const [stream, setStream] = useState<MediaStream | null>(null)
   const [capturing, setCapturing] = useState(false)
+  const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [videoReady, setVideoReady] = useState(false)
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
+
+  // Handle video stream setup
+  useEffect(() => {
+    if (stream && videoRef.current) {
+      videoRef.current.srcObject = stream
+      setVideoReady(false)
+    }
+  }, [stream])
 
   const startCamera = useCallback(async () => {
     try {
       setError(null)
+      setLoading(true)
+      setVideoReady(false)
+
+      // Check if getUserMedia is supported
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        throw new Error('Camera not supported by this browser')
+      }
+
       const mediaStream = await navigator.mediaDevices.getUserMedia({
         video: {
           width: { ideal: 1280 },
           height: { ideal: 720 },
           facingMode: 'user'
-        }
+        },
+        audio: false
       })
       
       setStream(mediaStream)
-      if (videoRef.current) {
-        videoRef.current.srcObject = mediaStream
-      }
-    } catch (err) {
+      setLoading(false)
+    } catch (err: any) {
+      setLoading(false)
       console.error('Camera access error:', err)
-      setError('Camera access is blocked in your browser settings.')
+      
+      let errorMessage = 'Unable to access camera. Please check your browser settings.'
+      
+      if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+        errorMessage = 'Camera permission denied. Please allow camera access and try again.'
+      } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+        errorMessage = 'No camera found. Please connect a camera and try again.'
+      } else if (err.name === 'NotSupportedError') {
+        errorMessage = 'Camera not supported by this browser.'
+      } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
+        errorMessage = 'Camera is already in use by another application.'
+      }
+      
+      setError(errorMessage)
     }
   }, [])
 
@@ -39,11 +70,16 @@ export default function WebcamCapture({ onPhotoSelected, selectedPhoto }: Webcam
     if (stream) {
       stream.getTracks().forEach(track => track.stop())
       setStream(null)
+      setVideoReady(false)
     }
   }, [stream])
 
+  const handleVideoReady = useCallback(() => {
+    setVideoReady(true)
+  }, [])
+
   const takePhoto = useCallback(() => {
-    if (!videoRef.current || !canvasRef.current) return
+    if (!videoRef.current || !canvasRef.current || !videoReady) return
 
     const video = videoRef.current
     const canvas = canvasRef.current
@@ -66,7 +102,7 @@ export default function WebcamCapture({ onPhotoSelected, selectedPhoto }: Webcam
         stopCamera()
       }
     }, 'image/jpeg', 0.9)
-  }, [onPhotoSelected, stopCamera])
+  }, [onPhotoSelected, stopCamera, videoReady])
 
   const retakePhoto = useCallback(() => {
     onPhotoSelected(null as any)
@@ -93,17 +129,30 @@ export default function WebcamCapture({ onPhotoSelected, selectedPhoto }: Webcam
     )
   }
 
-  if (stream && videoRef.current) {
+  if (stream) {
     return (
       <div className="space-y-6">
         <div className="relative bg-studio-darker rounded-lg overflow-hidden">
+          {loading && (
+            <div className="absolute inset-0 bg-studio-darker bg-opacity-75 flex items-center justify-center z-10">
+              <div className="text-white">Loading camera...</div>
+            </div>
+          )}
           <video
             ref={videoRef}
             autoPlay
             playsInline
             muted
+            onLoadedMetadata={handleVideoReady}
+            onCanPlay={handleVideoReady}
             className="w-full h-auto"
+            style={{ display: videoReady ? 'block' : 'none' }}
           />
+          {!videoReady && !loading && (
+            <div className="w-full h-64 bg-studio-darker flex items-center justify-center">
+              <div className="text-gray-400">Initializing camera...</div>
+            </div>
+          )}
           <canvas
             ref={canvasRef}
             className="hidden"
@@ -117,7 +166,8 @@ export default function WebcamCapture({ onPhotoSelected, selectedPhoto }: Webcam
           <div className="flex gap-4 justify-center">
             <button
               onClick={takePhoto}
-              className="studio-button"
+              disabled={!videoReady}
+              className={`studio-button ${!videoReady ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
               Take Photo
             </button>
@@ -141,14 +191,15 @@ export default function WebcamCapture({ onPhotoSelected, selectedPhoto }: Webcam
             <span className="text-white text-2xl">!</span>
           </div>
           <div>
-            <h3 className="text-white font-medium mb-2">Camera Access Blocked</h3>
-            <p className="text-gray-400 text-sm">{error}</p>
+            <h3 className="text-white font-medium mb-2">Camera Access Issue</h3>
+            <p className="text-gray-400 text-sm max-w-md mx-auto">{error}</p>
           </div>
           <button 
             onClick={startCamera}
-            className="studio-button"
+            disabled={loading}
+            className={`studio-button ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
           >
-            Try Again
+            {loading ? 'Starting...' : 'Try Again'}
           </button>
         </div>
       ) : (
@@ -164,9 +215,10 @@ export default function WebcamCapture({ onPhotoSelected, selectedPhoto }: Webcam
           </div>
           <button 
             onClick={startCamera}
-            className="studio-button"
+            disabled={loading}
+            className={`studio-button ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
           >
-            Start Camera
+            {loading ? 'Starting Camera...' : 'Start Camera'}
           </button>
         </div>
       )}
