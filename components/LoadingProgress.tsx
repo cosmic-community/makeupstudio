@@ -49,11 +49,13 @@ export default function LoadingProgress({
           newStageIndex = i + 1
         }
         
-        // Fix: Add proper bounds checking and null safety with explicit stage validation
-        const currentStageData = stages[newStageIndex]
-        if (newStageIndex !== currentStage && newStageIndex < stages.length && currentStageData) {
-          setCurrentStage(newStageIndex)
-          setCurrentStageName(currentStageData.name)
+        // Fix: Add proper bounds checking and null safety - ensure index is valid and stage exists
+        if (newStageIndex !== currentStage && newStageIndex < stages.length) {
+          const currentStageData = stages[newStageIndex]
+          if (currentStageData) {
+            setCurrentStage(newStageIndex)
+            setCurrentStageName(currentStageData.name)
+          }
         }
         
         // Complete when progress reaches 100%
