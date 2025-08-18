@@ -26,6 +26,12 @@ export default function LoadingProgress({ onComplete, stages }: LoadingProgressP
     }
 
     const stage = stages[currentStage]
+    
+    // Add type guard to handle potentially undefined stage
+    if (!stage) {
+      return
+    }
+    
     const startTime = Date.now()
     
     const updateProgress = () => {
