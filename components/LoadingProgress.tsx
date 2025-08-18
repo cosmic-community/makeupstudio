@@ -23,7 +23,7 @@ export default function LoadingProgress({
 
   useEffect(() => {
     let progressTimer: NodeJS.Timeout
-    let stageTimer: NodeJS.Timeout
+    let stageTimer: NodeJS.Timeout | undefined = undefined
     
     const totalDuration = stages.reduce((total, stage) => total + stage.duration, 0)
     let elapsedTime = 0
@@ -49,7 +49,7 @@ export default function LoadingProgress({
           newStageIndex = i + 1
         }
         
-        if (newStageIndex !== currentStage && newStageIndex < stages.length) {
+        if (newStageIndex !== currentStage && newStageIndex < stages.length && stages[newStageIndex]) {
           setCurrentStage(newStageIndex)
           setCurrentStageName(stages[newStageIndex].name)
         }
