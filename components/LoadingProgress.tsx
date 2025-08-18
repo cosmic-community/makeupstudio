@@ -49,10 +49,11 @@ export default function LoadingProgress({
           newStageIndex = i + 1
         }
         
-        // Fix: Add proper bounds checking and null safety
-        if (newStageIndex !== currentStage && newStageIndex < stages.length && stages[newStageIndex]) {
+        // Fix: Add proper bounds checking and null safety with explicit stage validation
+        const currentStageData = stages[newStageIndex]
+        if (newStageIndex !== currentStage && newStageIndex < stages.length && currentStageData) {
           setCurrentStage(newStageIndex)
-          setCurrentStageName(stages[newStageIndex].name)
+          setCurrentStageName(currentStageData.name)
         }
         
         // Complete when progress reaches 100%
@@ -114,7 +115,7 @@ export default function LoadingProgress({
 
         {/* Stage Indicators */}
         <div className="flex justify-center space-x-2 mb-6">
-          {stages.map((_, index) => (
+          {stages.map((stage, index) => (
             <div
               key={index}
               className={`w-2 h-2 rounded-full transition-all duration-300 ${
