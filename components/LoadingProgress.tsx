@@ -2,173 +2,90 @@
 
 import { useState, useEffect } from 'react'
 
-interface LoadingProgressProps {
-  onComplete: () => void
-  stages?: Array<{ name: string; duration: number }>
+interface LoadingStage {
+  name: string
+  duration: number
 }
 
-export default function LoadingProgress({ 
-  onComplete,
-  stages = [
-    { name: "Loading photo...", duration: 1000 },
-    { name: "Initializing canvas...", duration: 800 },
-    { name: "Setting up tools...", duration: 600 },
-    { name: "Preparing workspace...", duration: 400 },
-    { name: "Almost ready...", duration: 300 }
-  ]
-}: LoadingProgressProps) {
+interface LoadingProgressProps {
+  onComplete: () => void
+  stages: LoadingStage[]
+}
+
+export default function LoadingProgress({ onComplete, stages }: LoadingProgressProps) {
   const [currentStage, setCurrentStage] = useState(0)
   const [progress, setProgress] = useState(0)
-  const [currentStageName, setCurrentStageName] = useState(stages[0]?.name || "Loading...")
 
   useEffect(() => {
-    let progressTimer: NodeJS.Timeout
-    
-    const totalDuration = stages.reduce((total, stage) => total + stage.duration, 0)
-    let elapsedTime = 0
+    if (currentStage >= stages.length) {
+      // All stages complete
+      setTimeout(() => {
+        onComplete()
+      }, 200)
+      return
+    }
+
+    const stage = stages[currentStage]
+    const startTime = Date.now()
     
     const updateProgress = () => {
-      progressTimer = setInterval(() => {
-        elapsedTime += 50
-        const newProgress = Math.min((elapsedTime / totalDuration) * 100, 100)
-        setProgress(newProgress)
-        
-        // Update stage based on elapsed time - fix bounds checking
-        let cumulativeTime = 0
-        let newStageIndex = 0
-        
-        for (let i = 0; i < stages.length; i++) {
-          cumulativeTime += stages[i]?.duration || 0
-          if (elapsedTime < cumulativeTime) {
-            newStageIndex = i
-            break
-          }
-          // If we've passed all stages, stay at the last stage
-          newStageIndex = Math.min(i, stages.length - 1)
-        }
-        
-        // Update stage name with proper bounds checking
-        if (newStageIndex !== currentStage && newStageIndex < stages.length) {
-          const stageData = stages[newStageIndex]
-          if (stageData) {
-            setCurrentStage(newStageIndex)
-            setCurrentStageName(stageData.name)
-          }
-        }
-        
-        // Complete when progress reaches 100%
-        if (newProgress >= 100) {
-          clearInterval(progressTimer)
-          // Ensure we're on the final stage
-          const finalStage = stages[stages.length - 1]
-          if (finalStage) {
-            setCurrentStage(stages.length - 1)
-            setCurrentStageName(finalStage.name)
-          }
-          // Add a small delay before completing
-          setTimeout(() => {
-            onComplete()
-          }, 200)
-        }
-      }, 50)
-    }
-    
-    // Start the progress immediately
-    updateProgress()
-    
-    return () => {
-      if (progressTimer) {
-        clearInterval(progressTimer)
+      const elapsed = Date.now() - startTime
+      const stageProgress = Math.min((elapsed / stage.duration) * 100, 100)
+      setProgress(stageProgress)
+
+      if (stageProgress >= 100) {
+        // Move to next stage
+        setTimeout(() => {
+          setCurrentStage(prev => prev + 1)
+          setProgress(0)
+        }, 100)
+      } else {
+        requestAnimationFrame(updateProgress)
       }
     }
-  }, [onComplete, stages, currentStage])
+
+    updateProgress()
+  }, [currentStage, stages, onComplete])
+
+  if (currentStage >= stages.length) {
+    return (
+      <div className="min-h-screen bg-studio-darker flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-16 h-16 bg-green-600 rounded-full flex items-center justify-center mx-auto mb-4">
+            <span className="text-white font-bold text-xl">✓</span>
+          </div>
+          <p className="text-white font-medium">Ready!</p>
+        </div>
+      </div>
+    )
+  }
+
+  const currentStageName = stages[currentStage]?.name || 'Loading...'
 
   return (
     <div className="min-h-screen bg-studio-darker flex items-center justify-center">
       <div className="text-center max-w-md mx-auto px-6">
-        {/* Logo/Icon */}
-        <div className="relative mb-8">
-          <div className="w-20 h-20 bg-studio-accent rounded-full flex items-center justify-center mx-auto relative overflow-hidden">
-            <span className="text-white font-bold text-2xl z-10">🎨</span>
-            {/* Animated background */}
-            <div 
-              className="absolute inset-0 bg-gradient-to-r from-pink-500 to-purple-600 opacity-30 transition-transform duration-300"
-              style={{
-                transform: `translateX(${-100 + progress}%)`
-              }}
-            />
-          </div>
-          {/* Pulsing rings */}
-          <div className="absolute inset-0 rounded-full border-2 border-studio-accent opacity-20 animate-ping" />
-          <div className="absolute inset-2 rounded-full border border-studio-accent opacity-40 animate-pulse" />
+        <div className="w-16 h-16 bg-studio-accent rounded-full flex items-center justify-center mx-auto mb-6 animate-pulse-soft">
+          <span className="text-white font-bold text-xl">M</span>
         </div>
-
+        
+        <h2 className="text-xl font-bold text-white mb-2">Setting up your studio</h2>
+        <p className="text-gray-400 mb-8">
+          {currentStageName}
+        </p>
+        
         {/* Progress Bar */}
-        <div className="mb-6">
-          <div className="w-full bg-studio-gray rounded-full h-2 mb-4 overflow-hidden">
-            <div 
-              className="h-full bg-gradient-to-r from-studio-accent to-pink-500 rounded-full transition-all duration-200 ease-out relative"
-              style={{ width: `${progress}%` }}
-            >
-              {/* Shimmer effect */}
-              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent transform -skew-x-12 animate-shimmer" />
-            </div>
-          </div>
-          
-          {/* Percentage */}
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-gray-400">{currentStageName}</span>
-            <span className="text-white font-medium">{Math.round(progress)}%</span>
-          </div>
+        <div className="w-full bg-studio-gray rounded-full h-2 mb-4">
+          <div 
+            className="bg-studio-accent h-2 rounded-full transition-all duration-300 ease-out"
+            style={{ width: `${progress}%` }}
+          />
         </div>
-
-        {/* Stage Indicators */}
-        <div className="flex justify-center space-x-2 mb-6">
-          {stages.map((stage, index) => (
-            <div
-              key={index}
-              className={`w-2 h-2 rounded-full transition-all duration-300 ${
-                index <= currentStage
-                  ? 'bg-studio-accent scale-110'
-                  : index === currentStage + 1
-                  ? 'bg-studio-accent/50 animate-pulse'
-                  : 'bg-studio-gray'
-              }`}
-            />
-          ))}
-        </div>
-
-        {/* Loading Text */}
-        <div className="space-y-2">
-          <h3 className="text-xl font-bold text-white">Setting up your studio</h3>
-          <p className="text-gray-400 text-sm">
-            Preparing your makeup editor with all the tools you need
-          </p>
-        </div>
-
-        {/* Fun loading messages that change based on progress */}
-        <div className="mt-6 h-6">
-          {progress < 25 && (
-            <p className="text-xs text-gray-500 animate-fade-in">
-              💡 Tip: Good lighting makes a huge difference in makeup photos
-            </p>
-          )}
-          {progress >= 25 && progress < 50 && (
-            <p className="text-xs text-gray-500 animate-fade-in">
-              🎨 Did you know? You can sample colors directly from your photo
-            </p>
-          )}
-          {progress >= 50 && progress < 75 && (
-            <p className="text-xs text-gray-500 animate-fade-in">
-              ✨ Pro tip: Use light, buildable strokes for natural-looking makeup
-            </p>
-          )}
-          {progress >= 75 && (
-            <p className="text-xs text-gray-500 animate-fade-in">
-              🚀 Almost there! Get ready to create something amazing
-            </p>
-          )}
-        </div>
+        
+        {/* Stage Indicator */}
+        <p className="text-sm text-gray-400">
+          Step {currentStage + 1} of {stages.length}
+        </p>
       </div>
     </div>
   )

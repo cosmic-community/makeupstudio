@@ -17,25 +17,33 @@ export default function NewProjectPage() {
       return
     }
 
+    console.log('Photo selected:', photo.name, photo.size, 'bytes')
     setSelectedPhoto(photo)
   }, [])
 
   const handleContinue = useCallback(async () => {
-    if (!selectedPhoto) return
+    if (!selectedPhoto) {
+      console.error('No photo selected')
+      return
+    }
 
+    console.log('Processing photo for editor...')
     setIsProcessing(true)
 
     try {
       // Generate unique project ID
       const projectId = `project_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+      console.log('Generated project ID:', projectId)
       
       // Convert file to data URL for storage
       const reader = new FileReader()
       reader.onload = async (e) => {
         if (e.target?.result) {
           try {
-            // Store photo data in localStorage
             const photoDataUrl = e.target.result as string
+            console.log('Photo converted to data URL, size:', photoDataUrl.length)
+            
+            // Store photo data in localStorage
             localStorage.setItem(`photo_${projectId}`, photoDataUrl)
             
             // Store photo metadata
@@ -50,25 +58,33 @@ export default function NewProjectPage() {
               height: 0
             }
             localStorage.setItem(`photo_metadata_${projectId}`, JSON.stringify(photoMetadata))
+            console.log('Photo metadata stored:', photoMetadata)
             
             // Navigate to editor
+            console.log('Navigating to editor:', `/editor/${projectId}`)
             router.push(`/editor/${projectId}`)
           } catch (error) {
             console.error('Error storing photo:', error)
             alert('Failed to save photo. Please try again.')
             setIsProcessing(false)
           }
+        } else {
+          console.error('FileReader result is null')
+          alert('Failed to process photo. Please try again.')
+          setIsProcessing(false)
         }
       }
-      reader.onerror = () => {
-        console.error('Error reading file')
+      
+      reader.onerror = (error) => {
+        console.error('FileReader error:', error)
         alert('Failed to process photo. Please try again.')
         setIsProcessing(false)
       }
       
+      // Start reading the file
       reader.readAsDataURL(selectedPhoto)
     } catch (error) {
-      console.error('Error processing photo:', error)
+      console.error('Error in handleContinue:', error)
       alert('Failed to process photo. Please try again.')
       setIsProcessing(false)
     }

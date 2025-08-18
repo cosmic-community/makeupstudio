@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import LoadingProgress from './LoadingProgress'
 import type { Project, Photo, Layer } from '@/types'
 
@@ -22,75 +22,88 @@ export default function MakeupEditor({
   const [currentTool, setCurrentTool] = useState<'brush' | 'eraser' | 'dropper'>('brush')
   const [isLoading, setIsLoading] = useState(true)
   const [calibrationNeeded, setCalibrationNeeded] = useState(true)
-  const [editorReady, setEditorReady] = useState(false)
+  const [photoLoaded, setPhotoLoaded] = useState(false)
+  const [canvasInitialized, setCanvasInitialized] = useState(false)
 
-  // Load photo and initialize canvas
-  useEffect(() => {
-    const loadPhoto = async () => {
-      if (!photo?.blobRef) {
-        console.error('No photo blobRef available')
-        setIsLoading(false)
+  // Initialize canvas and load photo
+  const initializeCanvas = useCallback(async () => {
+    if (!photo?.blobRef || !canvasRef.current) {
+      console.error('Missing photo or canvas ref')
+      return
+    }
+
+    console.log('Initializing canvas with photo:', photo.blobRef.substring(0, 50))
+    
+    try {
+      const canvas = canvasRef.current
+      const ctx = canvas.getContext('2d')
+      
+      if (!ctx) {
+        console.error('Could not get canvas context')
         return
       }
+
+      // Create image from blob
+      const img = new Image()
       
-      try {
-        const img = new Image()
+      return new Promise<void>((resolve, reject) => {
         img.onload = () => {
-          const canvas = canvasRef.current
-          if (!canvas) {
-            console.error('Canvas ref not available')
-            setIsLoading(false)
-            return
+          try {
+            console.log('Image loaded, dimensions:', img.width, 'x', img.height)
+            
+            // Set canvas size to match image
+            canvas.width = img.width
+            canvas.height = img.height
+            
+            // Clear canvas and draw image
+            ctx.clearRect(0, 0, canvas.width, canvas.height)
+            ctx.drawImage(img, 0, 0)
+            
+            console.log('Canvas initialized successfully')
+            setPhotoLoaded(true)
+            setCanvasInitialized(true)
+            resolve()
+          } catch (error) {
+            console.error('Error drawing image to canvas:', error)
+            reject(error)
           }
-
-          const ctx = canvas.getContext('2d')
-          if (!ctx) {
-            console.error('Canvas context not available')
-            setIsLoading(false)
-            return
-          }
-
-          // Set canvas size
-          canvas.width = img.width
-          canvas.height = img.height
-
-          // Draw the photo
-          ctx.drawImage(img, 0, 0)
-          
-          console.log('Photo loaded successfully, canvas initialized')
         }
         
         img.onerror = (error) => {
-          console.error('Error loading photo:', error)
-          setIsLoading(false)
+          console.error('Error loading image:', error)
+          reject(error)
         }
         
-        // Set the image source
+        // Set image source
         img.src = photo.blobRef
-      } catch (error) {
-        console.error('Error in loadPhoto:', error)
+      })
+    } catch (error) {
+      console.error('Error in initializeCanvas:', error)
+      throw error
+    }
+  }, [photo])
+
+  // Handle loading completion
+  const handleLoadingComplete = useCallback(async () => {
+    console.log('Loading progress completed, initializing canvas...')
+    
+    try {
+      await initializeCanvas()
+      console.log('Canvas initialization complete')
+      
+      // Small delay to ensure everything is ready
+      setTimeout(() => {
         setIsLoading(false)
-      }
-    }
-
-    // Only load photo after editor is ready
-    if (editorReady) {
-      loadPhoto()
-    }
-  }, [photo, editorReady])
-
-  const handleLoadingComplete = () => {
-    console.log('Loading progress completed, setting editor ready')
-    setEditorReady(true)
-    // Small delay to ensure photo loading completes
-    setTimeout(() => {
+        console.log('Editor ready')
+      }, 300)
+    } catch (error) {
+      console.error('Failed to initialize canvas:', error)
       setIsLoading(false)
-    }, 500)
-  }
+    }
+  }, [initializeCanvas])
 
   const handleRunDetection = () => {
     setCalibrationNeeded(false)
-    // In a real implementation, this would trigger face detection
     console.log('Running face detection...')
   }
 
@@ -103,18 +116,18 @@ export default function MakeupEditor({
     onProjectUpdate(updatedProject)
   }
 
-  // Show loading screen until editor is ready and photo is loaded
-  if (!editorReady || isLoading) {
+  // Show loading screen while initializing
+  if (isLoading) {
     return (
       <LoadingProgress 
         onComplete={handleLoadingComplete}
         stages={[
-          { name: "Loading your photo...", duration: 1200 },
-          { name: "Initializing canvas...", duration: 900 },
-          { name: "Setting up drawing tools...", duration: 700 },
-          { name: "Preparing color palette...", duration: 600 },
-          { name: "Loading brush presets...", duration: 500 },
-          { name: "Final touches...", duration: 400 }
+          { name: "Loading your photo...", duration: 1000 },
+          { name: "Initializing canvas...", duration: 800 },
+          { name: "Setting up drawing tools...", duration: 600 },
+          { name: "Preparing color palette...", duration: 500 },
+          { name: "Loading brush presets...", duration: 400 },
+          { name: "Final touches...", duration: 300 }
         ]}
       />
     )
@@ -253,15 +266,31 @@ export default function MakeupEditor({
 
         {/* Main Canvas Area */}
         <div className="flex-1 flex items-center justify-center p-8">
-          <div className="canvas-container max-w-4xl w-full">
-            <canvas
-              ref={canvasRef}
-              className="w-full h-full object-contain"
-              style={{ maxWidth: '100%', maxHeight: '100%' }}
-            />
-            {project.layers.length === 0 && !calibrationNeeded && (
-              <div className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-lg">
-                <p className="text-white text-center">
+          <div className="canvas-container max-w-4xl w-full relative">
+            {canvasInitialized && photoLoaded ? (
+              <canvas
+                ref={canvasRef}
+                className="w-full h-full object-contain max-w-full max-h-full"
+                style={{ 
+                  maxWidth: '100%', 
+                  maxHeight: 'calc(100vh - 8rem)',
+                  display: 'block'
+                }}
+              />
+            ) : (
+              <div className="w-full h-96 bg-studio-dark rounded-lg flex items-center justify-center">
+                <div className="text-center">
+                  <div className="w-12 h-12 bg-studio-accent rounded-full flex items-center justify-center mx-auto mb-3 animate-pulse-soft">
+                    <span className="text-white font-bold">M</span>
+                  </div>
+                  <p className="text-gray-400">Preparing canvas...</p>
+                </div>
+              </div>
+            )}
+            
+            {project.layers.length === 0 && !calibrationNeeded && canvasInitialized && (
+              <div className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-lg pointer-events-none">
+                <p className="text-white text-center max-w-xs">
                   Select a tool and start painting. Masks keep strokes inside each region.
                 </p>
               </div>
@@ -311,7 +340,7 @@ export default function MakeupEditor({
       </div>
 
       {/* Calibration Overlay */}
-      {calibrationNeeded && (
+      {calibrationNeeded && canvasInitialized && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
           <div className="bg-studio-dark rounded-lg border border-studio-gray p-8 max-w-md mx-4">
             <h2 className="text-xl font-bold text-white mb-4">Let's map your features</h2>

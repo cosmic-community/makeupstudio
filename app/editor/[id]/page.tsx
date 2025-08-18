@@ -21,9 +21,14 @@ export default function EditorPage({ params }: EditorPageProps) {
   useEffect(() => {
     const loadProject = async () => {
       try {
+        console.log('Loading project for ID:', id)
+        
         // Try to load photo data and metadata from localStorage
         const photoDataUrl = localStorage.getItem(`photo_${id}`)
         const photoMetadataStr = localStorage.getItem(`photo_metadata_${id}`)
+        
+        console.log('Photo data found:', !!photoDataUrl)
+        console.log('Photo metadata found:', !!photoMetadataStr)
         
         if (!photoDataUrl) {
           setError('No photo found for this project. Please start a new project.')
@@ -33,7 +38,21 @@ export default function EditorPage({ params }: EditorPageProps) {
         // Parse photo metadata or create default
         let photoMetadata
         if (photoMetadataStr) {
-          photoMetadata = JSON.parse(photoMetadataStr)
+          try {
+            photoMetadata = JSON.parse(photoMetadataStr)
+          } catch (parseError) {
+            console.error('Error parsing photo metadata:', parseError)
+            photoMetadata = {
+              id: `photo_${id}`,
+              source: 'upload',
+              filename: 'photo.jpg',
+              size: 0,
+              type: 'image/jpeg',
+              capturedAt: new Date().toISOString(),
+              width: 800,
+              height: 600
+            }
+          }
         } else {
           photoMetadata = {
             id: `photo_${id}`,
@@ -47,17 +66,6 @@ export default function EditorPage({ params }: EditorPageProps) {
           }
         }
 
-        // Determine image dimensions if not available
-        if (photoMetadata.width === 0 || photoMetadata.height === 0) {
-          const img = new Image()
-          img.onload = () => {
-            photoMetadata.width = img.width
-            photoMetadata.height = img.height
-            localStorage.setItem(`photo_metadata_${id}`, JSON.stringify(photoMetadata))
-          }
-          img.src = photoDataUrl
-        }
-
         // Create photo object
         const newPhoto: Photo = {
           id: photoMetadata.id,
@@ -67,13 +75,31 @@ export default function EditorPage({ params }: EditorPageProps) {
           height: photoMetadata.height || 600,
           capturedAt: photoMetadata.capturedAt
         }
+        
+        console.log('Created photo object:', newPhoto)
         setPhoto(newPhoto)
 
         // Try to load existing project from localStorage
         const savedProject = localStorage.getItem(`project_${id}`)
         if (savedProject) {
-          const parsedProject = JSON.parse(savedProject) as Project
-          setProject(parsedProject)
+          try {
+            const parsedProject = JSON.parse(savedProject) as Project
+            console.log('Loaded existing project:', parsedProject)
+            setProject(parsedProject)
+          } catch (parseError) {
+            console.error('Error parsing saved project:', parseError)
+            // Create new project if parsing fails
+            const newProject: Project = {
+              id,
+              title: 'Untitled Project',
+              createdAt: new Date().toISOString(),
+              photoId: newPhoto.id,
+              layers: [],
+              symmetryGuide: false
+            }
+            setProject(newProject)
+            localStorage.setItem(`project_${id}`, JSON.stringify(newProject))
+          }
         } else {
           // Create new project
           const newProject: Project = {
@@ -84,6 +110,7 @@ export default function EditorPage({ params }: EditorPageProps) {
             layers: [],
             symmetryGuide: false
           }
+          console.log('Created new project:', newProject)
           setProject(newProject)
           localStorage.setItem(`project_${id}`, JSON.stringify(newProject))
         }
@@ -95,10 +122,13 @@ export default function EditorPage({ params }: EditorPageProps) {
       }
     }
 
-    loadProject()
+    if (id) {
+      loadProject()
+    }
   }, [id])
 
   const handleProjectUpdate = (updatedProject: Project) => {
+    console.log('Updating project:', updatedProject)
     setProject(updatedProject)
     localStorage.setItem(`project_${id}`, JSON.stringify(updatedProject))
   }
