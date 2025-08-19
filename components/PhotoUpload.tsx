@@ -11,15 +11,17 @@ export default function PhotoUpload({ onPhotoSelected, selectedPhoto }: PhotoUpl
   const [dragActive, setDragActive] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+  const [isProcessing, setIsProcessing] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const validateFile = (file: File): string | null => {
     // Check file type
-    if (!['image/jpeg', 'image/png', 'image/webp', 'image/jpg'].includes(file.type)) {
+    const supportedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/jpg']
+    if (!supportedTypes.includes(file.type)) {
       return 'That file type isn\'t supported. Please use JPG, PNG, or WebP.'
     }
     
-    // Check file size (15MB max to be more generous)
+    // Check file size (15MB max)
     if (file.size > 15 * 1024 * 1024) {
       return 'That file is too large. Try a smaller image (max 15MB).'
     }
@@ -34,21 +36,22 @@ export default function PhotoUpload({ onPhotoSelected, selectedPhoto }: PhotoUpl
 
   const handleFile = useCallback(async (file: File) => {
     setError(null)
+    setIsProcessing(true)
     
     console.log('Processing uploaded file:', file.name, file.size, 'bytes', file.type)
     
-    const validationError = validateFile(file)
-    if (validationError) {
-      setError(validationError)
-      return
-    }
-
     try {
+      const validationError = validateFile(file)
+      if (validationError) {
+        setError(validationError)
+        return
+      }
+
       // Create preview URL for display
       const previewDataUrl = URL.createObjectURL(file)
       setPreviewUrl(previewDataUrl)
 
-      // Check image dimensions and validate the file can be loaded
+      // Validate image can be loaded and get dimensions
       const img = new Image()
       await new Promise<void>((resolve, reject) => {
         img.onload = () => {
@@ -59,6 +62,7 @@ export default function PhotoUpload({ onPhotoSelected, selectedPhoto }: PhotoUpl
             return
           }
           
+          // Provide feedback about image quality
           if (img.width < 400 || img.height < 400) {
             setError('Photo may be too small for good results. Try using an image at least 400x400 pixels.')
           } else if (img.width < 800) {
@@ -87,6 +91,9 @@ export default function PhotoUpload({ onPhotoSelected, selectedPhoto }: PhotoUpl
         URL.revokeObjectURL(previewUrl)
         setPreviewUrl(null)
       }
+      onPhotoSelected(null)
+    } finally {
+      setIsProcessing(false)
     }
   }, [onPhotoSelected, previewUrl])
 
@@ -113,7 +120,9 @@ export default function PhotoUpload({ onPhotoSelected, selectedPhoto }: PhotoUpl
   }, [])
 
   const handleClick = () => {
-    fileInputRef.current?.click()
+    if (!isProcessing) {
+      fileInputRef.current?.click()
+    }
   }
 
   const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -147,8 +156,10 @@ export default function PhotoUpload({ onPhotoSelected, selectedPhoto }: PhotoUpl
         className={`border-2 border-dashed rounded-lg p-12 text-center cursor-pointer transition-colors duration-200 ${
           dragActive
             ? 'border-studio-accent bg-studio-accent/10'
+            : selectedPhoto 
+            ? 'border-green-500 bg-green-500/10'
             : 'border-studio-gray hover:border-studio-gray-light'
-        }`}
+        } ${isProcessing ? 'pointer-events-none opacity-50' : ''}`}
         onDrop={handleDrop}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
@@ -160,9 +171,20 @@ export default function PhotoUpload({ onPhotoSelected, selectedPhoto }: PhotoUpl
           accept="image/jpeg,image/jpg,image/png,image/webp"
           onChange={handleFileInput}
           className="hidden"
+          disabled={isProcessing}
         />
         
-        {selectedPhoto ? (
+        {isProcessing ? (
+          <div className="space-y-4">
+            <div className="w-20 h-20 bg-studio-accent rounded-full flex items-center justify-center mx-auto animate-pulse-soft">
+              <span className="text-white text-2xl">⏳</span>
+            </div>
+            <div>
+              <h3 className="text-white font-medium mb-1">Processing Photo...</h3>
+              <p className="text-gray-400 text-sm">Validating and preparing image</p>
+            </div>
+          </div>
+        ) : selectedPhoto ? (
           <div className="space-y-4">
             <div className="w-20 h-20 bg-green-600 rounded-full flex items-center justify-center mx-auto">
               <span className="text-white text-2xl">✓</span>
@@ -175,7 +197,7 @@ export default function PhotoUpload({ onPhotoSelected, selectedPhoto }: PhotoUpl
               </p>
             </div>
             <button 
-              className="text-studio-accent hover:text-studio-accent-light text-sm"
+              className="text-studio-accent hover:text-studio-accent-light text-sm font-medium"
               onClick={handleRemovePhoto}
             >
               Choose Different Photo
@@ -205,7 +227,7 @@ export default function PhotoUpload({ onPhotoSelected, selectedPhoto }: PhotoUpl
 
       <div className="text-center">
         <p className="text-gray-400 text-sm">
-          Remove glasses for better landmark detection.
+          Remove glasses for better landmark detection. Photos are stored locally and never uploaded.
         </p>
       </div>
     </div>

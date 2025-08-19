@@ -4,113 +4,87 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import PhotoUpload from '@/components/PhotoUpload'
 import WebcamCapture from '@/components/WebcamCapture'
+import { storePhoto, storeProject, checkStorageQuota } from '@/lib/storage'
+import type { StoredProject } from '@/lib/storage'
 
 export default function NewProjectPage() {
   const router = useRouter()
   const [selectedPhoto, setSelectedPhoto] = useState<File | null>(null)
   const [activeTab, setActiveTab] = useState<'upload' | 'webcam'>('upload')
   const [isProcessing, setIsProcessing] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const handlePhotoSelected = (photo: File | null) => {
-    console.log('Photo selected:', photo)
+    console.log('Photo selected:', photo?.name, photo?.size)
     setSelectedPhoto(photo)
+    setError(null)
   }
 
   const handleContinue = async () => {
     if (!selectedPhoto) {
-      console.error('No photo selected')
+      setError('Please select a photo first')
       return
     }
 
     setIsProcessing(true)
+    setError(null)
 
     try {
-      console.log('Processing photo for editor:', selectedPhoto.name, selectedPhoto.size, 'bytes')
+      console.log('Starting photo processing for editor:', selectedPhoto.name)
       
+      // Check storage quota before proceeding
+      const storageCheck = checkStorageQuota()
+      if (!storageCheck.available) {
+        throw new Error('Browser storage is full. Please clear some space and try again.')
+      }
+
       // Generate unique project ID
-      const projectId = `project_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+      const projectId = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
       console.log('Generated project ID:', projectId)
 
-      // Convert File to data URL with error handling
-      const dataUrl = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader()
-        reader.onload = (e) => {
-          const result = e.target?.result
-          if (typeof result === 'string') {
-            resolve(result)
-          } else {
-            reject(new Error('Failed to read file as data URL'))
-          }
+      // Store photo data with comprehensive validation
+      const storedPhoto = await storePhoto(projectId, selectedPhoto, activeTab)
+      console.log('Photo stored successfully:', storedPhoto.id)
+
+      // Create initial project data
+      const newProject: StoredProject = {
+        id: projectId,
+        title: 'Untitled Project',
+        photoId: storedPhoto.id,
+        layers: [],
+        createdAt: new Date().toISOString(),
+        symmetryGuide: false,
+        exportSettings: {
+          format: 'png',
+          quality: 95,
+          includeOriginal: true
         }
-        reader.onerror = () => reject(new Error('FileReader error'))
-        reader.readAsDataURL(selectedPhoto)
-      })
-
-      console.log('Data URL created, length:', dataUrl.length)
-
-      // Validate the data URL
-      if (!dataUrl.startsWith('data:image/')) {
-        throw new Error('Invalid image data URL format')
       }
 
-      // Get image dimensions for complete metadata
-      const imageMetadata = await new Promise<{width: number, height: number}>((resolve, reject) => {
-        const img = new Image()
-        img.onload = () => {
-          console.log('Image loaded for metadata, dimensions:', img.width, 'x', img.height)
-          resolve({
-            width: img.width,
-            height: img.height
-          })
-        }
-        img.onerror = () => reject(new Error('Failed to load image for metadata'))
-        img.src = dataUrl
-      })
+      // Store project data
+      storeProject(newProject)
+      console.log('Project created and stored:', newProject.id)
 
-      // Create comprehensive photo metadata
-      const photoMetadata = {
-        id: `photo_${projectId}`,
-        source: activeTab, // 'upload' or 'webcam'
-        filename: selectedPhoto.name,
-        size: selectedPhoto.size,
-        type: selectedPhoto.type,
-        capturedAt: new Date().toISOString(),
-        width: imageMetadata.width,
-        height: imageMetadata.height,
-        lastModified: selectedPhoto.lastModified
-      }
-
-      console.log('Created photo metadata:', photoMetadata)
-
-      // Store photo data and metadata in localStorage with validation
-      try {
-        localStorage.setItem(`photo_${projectId}`, dataUrl)
-        localStorage.setItem(`photo_metadata_${projectId}`, JSON.stringify(photoMetadata))
-        
-        // Verify storage was successful
-        const storedData = localStorage.getItem(`photo_${projectId}`)
-        const storedMetadata = localStorage.getItem(`photo_metadata_${projectId}`)
-        
-        if (!storedData || !storedMetadata) {
-          throw new Error('Failed to store photo data in localStorage')
-        }
-        
-        console.log('Photo data stored successfully in localStorage')
-        console.log('Stored data length:', storedData.length)
-        console.log('Stored metadata:', JSON.parse(storedMetadata))
-        
-      } catch (storageError) {
-        console.error('localStorage storage error:', storageError)
-        throw new Error('Failed to save photo data. Your browser may be running low on storage space.')
-      }
-
-      // Navigate to editor with the project ID
+      // Navigate to editor
       console.log('Navigating to editor with project ID:', projectId)
       router.push(`/editor/${projectId}`)
 
     } catch (error) {
       console.error('Error processing photo:', error)
-      alert(error instanceof Error ? error.message : 'Failed to process photo. Please try again.')
+      
+      let errorMessage = 'Failed to process photo. Please try again.'
+      
+      if (error instanceof Error) {
+        if (error.message.includes('storage')) {
+          errorMessage = 'Browser storage is full. Please clear some data and try again.'
+        } else if (error.message.includes('quota')) {
+          errorMessage = 'Storage quota exceeded. Please free up some space.'
+        } else {
+          errorMessage = error.message
+        }
+      }
+      
+      setError(errorMessage)
     } finally {
       setIsProcessing(false)
     }
@@ -160,6 +134,13 @@ export default function NewProjectPage() {
             </button>
           </div>
 
+          {/* Error Display */}
+          {error && (
+            <div className="mb-6 p-4 bg-red-600/20 border border-red-600/30 rounded-lg">
+              <p className="text-red-300 text-sm">{error}</p>
+            </div>
+          )}
+
           {/* Tab Content */}
           <div className="mb-8">
             {activeTab === 'upload' ? (
@@ -185,7 +166,14 @@ export default function NewProjectPage() {
                   isProcessing ? 'opacity-50 cursor-not-allowed' : ''
                 }`}
               >
-                {isProcessing ? 'Processing...' : 'Continue to Editor'}
+                {isProcessing ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <span className="animate-spin">⏳</span>
+                    Processing Photo...
+                  </span>
+                ) : (
+                  'Continue to Editor'
+                )}
               </button>
               <p className="text-gray-400 text-sm mt-3">
                 Your photo will be stored locally and not uploaded to any server.

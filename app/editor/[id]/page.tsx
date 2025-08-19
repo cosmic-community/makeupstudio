@@ -4,6 +4,8 @@
 import { use, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import MakeupEditor from '@/components/MakeupEditor'
+import { getStoredPhoto, getStoredProject, storeProject } from '@/lib/storage'
+import type { StoredPhoto, StoredProject } from '@/lib/storage'
 import type { Project, Photo } from '@/types'
 
 interface EditorPageProps {
@@ -23,34 +25,34 @@ export default function EditorPage({ params }: EditorPageProps) {
       try {
         console.log('Loading project for ID:', id)
         
-        // Try to load photo data from localStorage
-        const photoDataUrl = localStorage.getItem(`photo_${id}`)
-        const photoMetadataStr = localStorage.getItem(`photo_metadata_${id}`)
+        // Load photo data using the new storage system
+        const storedPhoto = getStoredPhoto(id)
         
-        console.log('Photo data found:', !!photoDataUrl)
-        console.log('Photo metadata found:', !!photoMetadataStr)
-        
-        if (!photoDataUrl) {
-          console.error('No photo data found in localStorage for project:', id)
+        if (!storedPhoto) {
+          console.error('No photo data found for project:', id)
           setError('No photo found for this project. Please start a new project.')
           return
         }
 
-        // Validate the photo data URL format
-        if (!photoDataUrl.startsWith('data:image/')) {
-          console.error('Invalid photo data format:', photoDataUrl.substring(0, 50))
+        console.log('Photo data loaded successfully:', {
+          id: storedPhoto.id,
+          dimensions: `${storedPhoto.width}x${storedPhoto.height}`,
+          size: `${(storedPhoto.dataUrl.length / 1024).toFixed(1)}KB`,
+          source: storedPhoto.source
+        })
+
+        // Validate photo data
+        if (!storedPhoto.dataUrl.startsWith('data:image/')) {
+          console.error('Invalid photo data format')
           setError('Invalid photo data found. Please start a new project.')
           return
         }
 
-        console.log('Photo data URL length:', photoDataUrl.length)
-        console.log('Photo data preview:', photoDataUrl.substring(0, 100) + '...')
-
-        // Test if the image data can be loaded
+        // Test image loading
         await new Promise<void>((resolve, reject) => {
           const testImg = new Image()
           testImg.onload = () => {
-            console.log('Photo data validation successful, dimensions:', testImg.width, 'x', testImg.height)
+            console.log('Photo validation successful:', testImg.width, 'x', testImg.height)
             
             if (testImg.width === 0 || testImg.height === 0) {
               reject(new Error('Photo has invalid dimensions'))
@@ -59,106 +61,71 @@ export default function EditorPage({ params }: EditorPageProps) {
             
             resolve()
           }
-          testImg.onerror = (error) => {
-            console.error('Photo data validation failed:', error)
-            reject(new Error('Photo data is corrupted or invalid'))
+          testImg.onerror = () => {
+            reject(new Error('Photo data is corrupted'))
           }
-          testImg.src = photoDataUrl
+          testImg.src = storedPhoto.dataUrl
         })
 
-        // Parse photo metadata with fallback
-        let photoMetadata: any = {}
-        if (photoMetadataStr) {
-          try {
-            photoMetadata = JSON.parse(photoMetadataStr)
-            console.log('Parsed photo metadata:', photoMetadata)
-          } catch (parseError) {
-            console.error('Error parsing photo metadata:', parseError)
-            console.log('Using default metadata instead')
-          }
-        }
-
-        // Get actual image dimensions from the data URL to ensure accuracy
-        const actualDimensions = await new Promise<{width: number, height: number}>((resolve) => {
-          const img = new Image()
-          img.onload = () => {
-            resolve({
-              width: img.width,
-              height: img.height
-            })
-          }
-          img.src = photoDataUrl
-        })
-
-        console.log('Actual image dimensions from data URL:', actualDimensions)
-
-        // Create comprehensive photo object with all required data
-        const newPhoto: Photo = {
-          id: photoMetadata.id || `photo_${id}`,
-          source: photoMetadata.source || 'upload',
-          blobRef: photoDataUrl, // The validated data URL
-          width: actualDimensions.width,
-          height: actualDimensions.height,
-          capturedAt: photoMetadata.capturedAt || new Date().toISOString(),
-          // Additional metadata for editor
-          filename: photoMetadata.filename || 'photo.jpg',
-          size: photoMetadata.size || photoDataUrl.length,
-          type: photoMetadata.type || 'image/jpeg'
+        // Convert stored photo to Photo type for editor
+        const photo: Photo = {
+          id: storedPhoto.id,
+          source: storedPhoto.source,
+          blobRef: storedPhoto.dataUrl,
+          width: storedPhoto.width,
+          height: storedPhoto.height,
+          capturedAt: storedPhoto.capturedAt,
+          filename: storedPhoto.filename,
+          size: storedPhoto.size,
+          type: storedPhoto.type
         }
         
-        console.log('Created comprehensive photo object:', newPhoto)
-        setPhoto(newPhoto)
+        setPhoto(photo)
 
-        // Try to load existing project from localStorage
-        const savedProject = localStorage.getItem(`project_${id}`)
-        if (savedProject) {
-          try {
-            const parsedProject = JSON.parse(savedProject) as Project
-            console.log('Loaded existing project:', parsedProject)
-            
-            // Ensure the project has the correct photo ID
-            if (parsedProject.photoId !== newPhoto.id) {
-              parsedProject.photoId = newPhoto.id
-              localStorage.setItem(`project_${id}`, JSON.stringify(parsedProject))
-            }
-            
-            setProject(parsedProject)
-          } catch (parseError) {
-            console.error('Error parsing saved project:', parseError)
-            // Create new project if parsing fails
-            const newProject: Project = {
-              id,
-              title: 'Untitled Project',
-              createdAt: new Date().toISOString(),
-              photoId: newPhoto.id,
-              layers: [],
-              symmetryGuide: false
-            }
-            setProject(newProject)
-            localStorage.setItem(`project_${id}`, JSON.stringify(newProject))
-          }
-        } else {
-          // Create new project
-          const newProject: Project = {
+        // Load or create project
+        let projectData = getStoredProject(id)
+        
+        if (!projectData) {
+          console.log('Creating new project for:', id)
+          projectData = {
             id,
             title: 'Untitled Project',
-            createdAt: new Date().toISOString(),
-            photoId: newPhoto.id,
+            photoId: storedPhoto.id,
             layers: [],
-            symmetryGuide: false
+            createdAt: new Date().toISOString(),
+            symmetryGuide: false,
+            exportSettings: {
+              format: 'png',
+              quality: 95,
+              includeOriginal: true
+            }
           }
-          console.log('Created new project:', newProject)
-          setProject(newProject)
-          localStorage.setItem(`project_${id}`, JSON.stringify(newProject))
+          storeProject(projectData)
         }
+
+        // Convert to Project type for editor
+        const project: Project = {
+          id: projectData.id,
+          title: projectData.title,
+          photoId: projectData.photoId,
+          layers: projectData.layers,
+          createdAt: projectData.createdAt,
+          updatedAt: projectData.updatedAt,
+          symmetryGuide: projectData.symmetryGuide,
+          exportSettings: projectData.exportSettings
+        }
+
+        console.log('Project loaded successfully:', project.id)
+        setProject(project)
+
       } catch (err) {
         console.error('Error loading project:', err)
         
         let errorMessage = 'Failed to load project. The photo data may be corrupted or missing.'
         
         if (err instanceof Error) {
-          if (err.message.includes('corrupted') || err.message.includes('invalid')) {
-            errorMessage = 'The photo data is corrupted or invalid. Please start a new project with a fresh photo.'
+          if (err.message.includes('corrupted')) {
+            errorMessage = 'The photo data is corrupted. Please start a new project with a fresh photo.'
           } else if (err.message.includes('dimensions')) {
             errorMessage = 'The photo has invalid dimensions. Please start a new project with a valid image.'
           }
@@ -176,9 +143,22 @@ export default function EditorPage({ params }: EditorPageProps) {
   }, [id])
 
   const handleProjectUpdate = (updatedProject: Project) => {
-    console.log('Updating project:', updatedProject)
+    console.log('Updating project:', updatedProject.id)
     setProject(updatedProject)
-    localStorage.setItem(`project_${id}`, JSON.stringify(updatedProject))
+    
+    // Convert to StoredProject and save
+    const storedProject: StoredProject = {
+      id: updatedProject.id,
+      title: updatedProject.title,
+      photoId: updatedProject.photoId,
+      layers: updatedProject.layers,
+      createdAt: updatedProject.createdAt,
+      updatedAt: updatedProject.updatedAt,
+      symmetryGuide: updatedProject.symmetryGuide,
+      exportSettings: updatedProject.exportSettings
+    }
+    
+    storeProject(storedProject)
   }
 
   const handleBack = () => {
