@@ -37,55 +37,95 @@ export default function NewProjectPage() {
       
       // Convert file to data URL for storage
       const reader = new FileReader()
-      reader.onload = async (e) => {
-        if (e.target?.result) {
-          try {
-            const photoDataUrl = e.target.result as string
-            console.log('Photo converted to data URL, size:', photoDataUrl.length)
-            
-            // Store photo data in localStorage
-            localStorage.setItem(`photo_${projectId}`, photoDataUrl)
-            
-            // Store photo metadata
-            const photoMetadata = {
-              id: `photo_${projectId}`,
-              source: photoMethod,
-              filename: selectedPhoto.name,
-              size: selectedPhoto.size,
-              type: selectedPhoto.type,
-              capturedAt: new Date().toISOString(),
-              width: 0, // Will be determined when loading in editor
-              height: 0
+      
+      const processPhoto = new Promise<void>((resolve, reject) => {
+        reader.onload = async (e) => {
+          if (e.target?.result) {
+            try {
+              const photoDataUrl = e.target.result as string
+              console.log('Photo converted to data URL, length:', photoDataUrl.length)
+              
+              // Validate the data URL format
+              if (!photoDataUrl.startsWith('data:image/')) {
+                throw new Error('Invalid photo data format')
+              }
+              
+              // Test if the image can be loaded
+              const testImage = new Image()
+              testImage.onload = () => {
+                console.log('Photo validation successful, dimensions:', testImage.width, 'x', testImage.height)
+                
+                try {
+                  // Store photo data in localStorage with error handling
+                  localStorage.setItem(`photo_${projectId}`, photoDataUrl)
+                  console.log('Photo data stored successfully')
+                  
+                  // Store photo metadata
+                  const photoMetadata = {
+                    id: `photo_${projectId}`,
+                    source: photoMethod,
+                    filename: selectedPhoto.name,
+                    size: selectedPhoto.size,
+                    type: selectedPhoto.type,
+                    capturedAt: new Date().toISOString(),
+                    width: testImage.width,
+                    height: testImage.height
+                  }
+                  
+                  localStorage.setItem(`photo_metadata_${projectId}`, JSON.stringify(photoMetadata))
+                  console.log('Photo metadata stored:', photoMetadata)
+                  
+                  // Verify storage was successful
+                  const storedPhoto = localStorage.getItem(`photo_${projectId}`)
+                  const storedMetadata = localStorage.getItem(`photo_metadata_${projectId}`)
+                  
+                  if (!storedPhoto || !storedMetadata) {
+                    throw new Error('Failed to verify photo storage')
+                  }
+                  
+                  console.log('Photo storage verified successfully')
+                  resolve()
+                } catch (storageError) {
+                  console.error('Storage error:', storageError)
+                  reject(new Error('Failed to save photo data'))
+                }
+              }
+              
+              testImage.onerror = () => {
+                console.error('Photo validation failed - image cannot be loaded')
+                reject(new Error('Invalid photo data'))
+              }
+              
+              testImage.src = photoDataUrl
+            } catch (error) {
+              console.error('Error processing photo:', error)
+              reject(error)
             }
-            localStorage.setItem(`photo_metadata_${projectId}`, JSON.stringify(photoMetadata))
-            console.log('Photo metadata stored:', photoMetadata)
-            
-            // Navigate to editor
-            console.log('Navigating to editor:', `/editor/${projectId}`)
-            router.push(`/editor/${projectId}`)
-          } catch (error) {
-            console.error('Error storing photo:', error)
-            alert('Failed to save photo. Please try again.')
-            setIsProcessing(false)
+          } else {
+            console.error('FileReader result is null')
+            reject(new Error('Failed to read photo file'))
           }
-        } else {
-          console.error('FileReader result is null')
-          alert('Failed to process photo. Please try again.')
-          setIsProcessing(false)
         }
-      }
+        
+        reader.onerror = (error) => {
+          console.error('FileReader error:', error)
+          reject(new Error('Failed to process photo file'))
+        }
+        
+        // Start reading the file
+        reader.readAsDataURL(selectedPhoto)
+      })
       
-      reader.onerror = (error) => {
-        console.error('FileReader error:', error)
-        alert('Failed to process photo. Please try again.')
-        setIsProcessing(false)
-      }
+      // Wait for photo processing to complete
+      await processPhoto
       
-      // Start reading the file
-      reader.readAsDataURL(selectedPhoto)
+      // Navigate to editor
+      console.log('Navigating to editor:', `/editor/${projectId}`)
+      router.push(`/editor/${projectId}`)
+      
     } catch (error) {
       console.error('Error in handleContinue:', error)
-      alert('Failed to process photo. Please try again.')
+      alert(`Failed to process photo: ${error instanceof Error ? error.message : 'Unknown error'}`)
       setIsProcessing(false)
     }
   }, [selectedPhoto, photoMethod, router])
@@ -175,6 +215,9 @@ export default function NewProjectPage() {
             >
               {isProcessing ? 'Processing...' : 'Continue to Editor'}
             </button>
+            <p className="text-gray-400 text-sm mt-2">
+              Your photo will be saved for the editor
+            </p>
           </div>
         )}
       </div>

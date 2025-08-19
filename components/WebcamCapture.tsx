@@ -13,6 +13,7 @@ export default function WebcamCapture({ onPhotoSelected, selectedPhoto }: Webcam
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [videoReady, setVideoReady] = useState(false)
+  const [capturedPhoto, setCapturedPhoto] = useState<File | null>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
@@ -24,11 +25,21 @@ export default function WebcamCapture({ onPhotoSelected, selectedPhoto }: Webcam
     }
   }, [stream])
 
+  // Clean up stream when component unmounts
+  useEffect(() => {
+    return () => {
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop())
+      }
+    }
+  }, [stream])
+
   const startCamera = useCallback(async () => {
     try {
       setError(null)
       setLoading(true)
       setVideoReady(false)
+      setCapturedPhoto(null)
 
       // Check if getUserMedia is supported
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
@@ -79,13 +90,19 @@ export default function WebcamCapture({ onPhotoSelected, selectedPhoto }: Webcam
   }, [])
 
   const takePhoto = useCallback(async () => {
-    if (!videoRef.current || !canvasRef.current || !videoReady) return
+    if (!videoRef.current || !canvasRef.current || !videoReady) {
+      console.error('Video or canvas not ready')
+      return
+    }
 
     const video = videoRef.current
     const canvas = canvasRef.current
     const context = canvas.getContext('2d')
     
-    if (!context) return
+    if (!context) {
+      console.error('Could not get canvas context')
+      return
+    }
 
     setCapturing(true)
 
@@ -94,22 +111,52 @@ export default function WebcamCapture({ onPhotoSelected, selectedPhoto }: Webcam
       canvas.width = video.videoWidth
       canvas.height = video.videoHeight
 
+      console.log('Taking photo, video dimensions:', video.videoWidth, 'x', video.videoHeight)
+
       // Draw the video frame to canvas
       context.drawImage(video, 0, 0)
 
       // Convert canvas to blob with higher quality
       const blob = await new Promise<Blob | null>((resolve) => {
-        canvas.toBlob(resolve, 'image/jpeg', 0.95)
+        canvas.toBlob((result) => {
+          resolve(result)
+        }, 'image/jpeg', 0.95)
       })
 
-      if (blob) {
-        const file = new File([blob], `webcam-selfie-${Date.now()}.jpg`, { 
-          type: 'image/jpeg',
-          lastModified: Date.now()
-        })
-        onPhotoSelected(file)
-        stopCamera()
+      if (!blob) {
+        throw new Error('Failed to create image blob')
       }
+
+      console.log('Photo blob created, size:', blob.size, 'bytes')
+
+      // Create file from blob with proper metadata
+      const timestamp = Date.now()
+      const file = new File([blob], `webcam-selfie-${timestamp}.jpg`, { 
+        type: 'image/jpeg',
+        lastModified: timestamp
+      })
+
+      console.log('Photo file created:', file.name, file.size, 'bytes')
+
+      // Verify the file can be read
+      const reader = new FileReader()
+      reader.onload = (e) => {
+        if (e.target?.result) {
+          console.log('Photo file verification successful')
+          setCapturedPhoto(file)
+          onPhotoSelected(file)
+          stopCamera()
+        } else {
+          console.error('Photo file verification failed')
+          throw new Error('Photo file verification failed')
+        }
+      }
+      reader.onerror = () => {
+        console.error('Photo file read error')
+        throw new Error('Photo file read error')
+      }
+      reader.readAsDataURL(file)
+
     } catch (error) {
       console.error('Error taking photo:', error)
       setError('Failed to capture photo. Please try again.')
@@ -119,30 +166,37 @@ export default function WebcamCapture({ onPhotoSelected, selectedPhoto }: Webcam
   }, [onPhotoSelected, stopCamera, videoReady])
 
   const retakePhoto = useCallback(() => {
+    setCapturedPhoto(null)
     onPhotoSelected(null as any)
     startCamera()
   }, [onPhotoSelected, startCamera])
 
-  if (selectedPhoto && !stream) {
+  // Show success state when photo is captured
+  if (capturedPhoto || (selectedPhoto && !stream)) {
     return (
       <div className="space-y-6 text-center">
         <div className="w-20 h-20 bg-green-600 rounded-full flex items-center justify-center mx-auto">
           <span className="text-white text-2xl">✓</span>
         </div>
         <div>
-          <h3 className="text-white font-medium mb-1">Photo Captured</h3>
-          <p className="text-gray-400 text-sm">Ready to continue to editor</p>
+          <h3 className="text-white font-medium mb-1">Photo Captured Successfully</h3>
+          <p className="text-gray-400 text-sm">
+            {capturedPhoto ? capturedPhoto.name : selectedPhoto?.name} 
+            {capturedPhoto && ` (${(capturedPhoto.size / 1024 / 1024).toFixed(1)}MB)`}
+          </p>
+          <p className="text-gray-400 text-sm mt-1">Ready to continue to editor</p>
         </div>
         <button 
           onClick={retakePhoto}
           className="studio-button-secondary"
         >
-          Retake
+          Retake Photo
         </button>
       </div>
     )
   }
 
+  // Show camera interface when streaming
   if (stream) {
     return (
       <div className="space-y-6">
@@ -200,6 +254,7 @@ export default function WebcamCapture({ onPhotoSelected, selectedPhoto }: Webcam
     )
   }
 
+  // Show initial state with start camera button
   return (
     <div className="space-y-6 text-center">
       {error ? (
