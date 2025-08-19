@@ -1,161 +1,112 @@
-import Link from 'next/link'
-import type { Lesson, LookPreset, GalleryShowcase } from '@/types'
+import { getFeaturedLessons, getFeaturedGallery, getPopularLookPresets } from '@/lib/cosmic'
+import { Lesson, LookPreset, GalleryShowcase } from '@/types'
+import LessonCard from './LessonCard'
+import PresetCard from './PresetCard'
 
-interface FeaturedContentProps {
-  lessons: Lesson[]
-  presets: LookPreset[]
-  gallery: GalleryShowcase[]
-}
+export default async function FeaturedContent() {
+  const [lessons, presets, gallery] = await Promise.all([
+    getFeaturedLessons(),
+    getPopularLookPresets(),
+    getFeaturedGallery()
+  ])
 
-export default function FeaturedContent({ lessons, presets, gallery }: FeaturedContentProps) {
   return (
-    <section className="py-20">
+    <div className="py-20 bg-studio-dark">
       <div className="max-w-7xl mx-auto px-4">
-        <div className="text-center mb-16">
-          <h2 className="text-3xl font-bold text-white mb-4">Learn & Practice</h2>
-          <p className="text-gray-400 max-w-2xl mx-auto">
-            Explore lessons, presets, and inspiration from our community
-          </p>
-        </div>
-        
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Featured Lessons */}
-          <div className="bg-studio-dark rounded-lg border border-studio-gray p-6">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-xl font-bold text-white">Featured Lessons</h3>
-              <Link 
-                href="/lessons"
-                className="text-studio-accent hover:text-studio-accent-light transition-colors text-sm"
-              >
-                View All →
-              </Link>
+        {/* Featured Lessons */}
+        {lessons.length > 0 && (
+          <section className="mb-20">
+            <div className="text-center mb-12">
+              <h2 className="text-3xl font-bold text-white mb-4">Featured Lessons</h2>
+              <p className="text-gray-400 text-lg">
+                Master professional makeup techniques with our step-by-step guides
+              </p>
             </div>
             
-            <div className="space-y-4">
-              {lessons.slice(0, 3).map((lesson: Lesson) => (
-                <div key={lesson.id} className="border-b border-studio-gray pb-4 last:border-b-0">
-                  <h4 className="text-white font-medium mb-1">
-                    {lesson.metadata.title}
-                  </h4>
-                  <p className="text-gray-400 text-sm mb-2">
-                    {lesson.metadata.description}
-                  </p>
-                  <div className="flex items-center gap-2 text-xs">
-                    <span className="bg-studio-gray px-2 py-1 rounded text-gray-300">
-                      {lesson.metadata.difficulty?.value || 'Beginner'}
-                    </span>
-                    {lesson.metadata.duration_minutes && (
-                      <span className="text-gray-400">
-                        {lesson.metadata.duration_minutes} min
-                      </span>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+              {lessons.map((lesson) => (
+                <LessonCard key={lesson.id} lesson={lesson} />
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* Popular Presets */}
+        {presets.length > 0 && (
+          <section className="mb-20">
+            <div className="text-center mb-12">
+              <h2 className="text-3xl font-bold text-white mb-4">Popular Look Presets</h2>
+              <p className="text-gray-400 text-lg">
+                Try these trending makeup looks and customize them to your style
+              </p>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+              {presets.map((preset) => (
+                <PresetCard key={preset.id} preset={preset} />
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* Gallery Showcase */}
+        {gallery.length > 0 && (
+          <section>
+            <div className="text-center mb-12">
+              <h2 className="text-3xl font-bold text-white mb-4">Inspiration Gallery</h2>
+              <p className="text-gray-400 text-lg">
+                Get inspired by stunning makeup artistry from our community
+              </p>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+              {gallery.map((item) => (
+                <div key={item.id} className="bg-studio-gray rounded-lg overflow-hidden hover:transform hover:scale-105 transition-all duration-300">
+                  {item.metadata?.featured_images && item.metadata.featured_images.length > 0 && (
+                    <div className="aspect-square overflow-hidden">
+                      <img 
+                        src={`${item.metadata.featured_images[0].imgix_url}?w=800&h=800&fit=crop&auto=format,compress`}
+                        alt={item.title}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                  )}
+                  
+                  <div className="p-6">
+                    <h3 className="text-xl font-semibold text-white mb-2">{item.title}</h3>
+                    {item.metadata?.description && (
+                      <p className="text-gray-400 mb-4 line-clamp-3">{item.metadata.description}</p>
+                    )}
+                    
+                    {item.metadata?.techniques && item.metadata.techniques.length > 0 && (
+                      <div className="flex flex-wrap gap-2">
+                        {item.metadata.techniques.slice(0, 3).map((technique: string, index: number) => (
+                          <span 
+                            key={index}
+                            className="px-3 py-1 bg-studio-accent/20 text-studio-accent text-xs rounded-full"
+                          >
+                            {technique}
+                          </span>
+                        ))}
+                      </div>
                     )}
                   </div>
                 </div>
               ))}
             </div>
-            
-            {lessons.length === 0 && (
-              <p className="text-gray-400 text-center py-8">
-                No lessons available yet
-              </p>
-            )}
-          </div>
+          </section>
+        )}
 
-          {/* Popular Presets */}
-          <div className="bg-studio-dark rounded-lg border border-studio-gray p-6">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-xl font-bold text-white">Popular Presets</h3>
-              <Link 
-                href="/presets"
-                className="text-studio-accent hover:text-studio-accent-light transition-colors text-sm"
-              >
-                View All →
-              </Link>
-            </div>
-            
-            <div className="space-y-4">
-              {presets.slice(0, 3).map((preset: LookPreset) => (
-                <div key={preset.id} className="border-b border-studio-gray pb-4 last:border-b-0">
-                  <h4 className="text-white font-medium mb-1">
-                    {preset.metadata.name}
-                  </h4>
-                  <p className="text-gray-400 text-sm mb-2">
-                    {preset.metadata.description}
-                  </p>
-                  <div className="flex items-center gap-2 text-xs">
-                    <span className="bg-studio-gray px-2 py-1 rounded text-gray-300">
-                      {preset.metadata.category?.value || 'Classic'}
-                    </span>
-                    <span className="bg-studio-accent px-2 py-1 rounded text-white">
-                      {preset.metadata.complexity?.value || 'Simple'}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-            
-            {presets.length === 0 && (
-              <p className="text-gray-400 text-center py-8">
-                No presets available yet
-              </p>
-            )}
+        {/* Empty State */}
+        {lessons.length === 0 && presets.length === 0 && gallery.length === 0 && (
+          <div className="text-center py-20">
+            <div className="text-gray-400 mb-4">No featured content available yet.</div>
+            <p className="text-sm text-gray-500">
+              Check back later for lessons, presets, and gallery showcases.
+            </p>
           </div>
-
-          {/* Gallery Showcase */}
-          <div className="bg-studio-dark rounded-lg border border-studio-gray p-6">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-xl font-bold text-white">Inspiration</h3>
-            </div>
-            
-            <div className="space-y-4">
-              {gallery.slice(0, 1).map((showcase: GalleryShowcase) => (
-                <div key={showcase.id}>
-                  {showcase.metadata.featured_images && showcase.metadata.featured_images.length > 0 && showcase.metadata.featured_images[0] && (
-                    <div className="mb-4">
-                      <img
-                        src={`${showcase.metadata.featured_images[0].imgix_url}?w=400&h=300&fit=crop&auto=format,compress`}
-                        alt={showcase.metadata.title}
-                        className="w-full h-40 object-cover rounded-lg"
-                      />
-                    </div>
-                  )}
-                  
-                  <h4 className="text-white font-medium mb-2">
-                    {showcase.metadata.title}
-                  </h4>
-                  <p className="text-gray-400 text-sm mb-3">
-                    {showcase.metadata.description}
-                  </p>
-                  
-                  {showcase.metadata.techniques && (
-                    <div className="flex flex-wrap gap-2">
-                      {showcase.metadata.techniques.slice(0, 3).map((technique: string, index: number) => (
-                        <span 
-                          key={index}
-                          className="bg-studio-gray px-2 py-1 rounded text-xs text-gray-300"
-                        >
-                          {technique}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-            
-            {gallery.length === 0 && (
-              <div className="text-center py-8">
-                <div className="w-16 h-16 bg-studio-gray rounded-lg flex items-center justify-center mx-auto mb-4">
-                  <span className="text-2xl">🖼️</span>
-                </div>
-                <p className="text-gray-400">
-                  Community showcases coming soon
-                </p>
-              </div>
-            )}
-          </div>
-        </div>
+        )}
       </div>
-    </section>
+    </div>
   )
 }

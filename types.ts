@@ -1,3 +1,15 @@
+// Base Cosmic object interface
+export interface CosmicObject {
+  id: string
+  slug: string
+  title: string
+  created_at: string
+  modified_at: string
+  status: string
+  thumbnail?: string
+}
+
+// Photo management interfaces
 export interface Photo {
   id: string
   source: 'upload' | 'webcam'
@@ -59,17 +71,6 @@ export interface BrushSettings {
   softness: number
   color: string
   tool: 'brush' | 'eraser' | 'dropper'
-}
-
-// Base Cosmic object interface
-export interface CosmicObject {
-  id: string
-  slug: string
-  title: string
-  created_at: string
-  modified_at: string
-  status: string
-  thumbnail?: string
 }
 
 // Color Palette with proper Cosmic structure

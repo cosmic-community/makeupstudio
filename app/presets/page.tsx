@@ -1,146 +1,107 @@
-import Link from 'next/link'
 import { getLookPresets, getColorPalettes } from '@/lib/cosmic'
 import PresetCard from '@/components/PresetCard'
-import Navigation from '@/components/Navigation'
-import type { LookPreset, ColorPalette } from '@/types'
+import { LookPreset, ColorPalette } from '@/types'
 
 export default async function PresetsPage() {
-  const [presets, palettes] = await Promise.all([
+  const [lookPresets, colorPalettes] = await Promise.all([
     getLookPresets(),
     getColorPalettes()
   ])
 
   // Group presets by category
-  const presetsByCategory = presets.reduce((acc: Record<string, LookPreset[]>, preset: LookPreset) => {
-    const category = preset.metadata.category?.value || 'Other'
-    if (!acc[category]) acc[category] = []
+  const categoryPresets = lookPresets.reduce((acc: Record<string, LookPreset[]>, preset) => {
+    const category = preset.metadata?.category?.value || 'Other'
+    if (!acc[category]) {
+      acc[category] = []
+    }
     acc[category].push(preset)
     return acc
-  }, {} as Record<string, LookPreset[]>)
+  }, {})
+
+  // Group color palettes by category  
+  const categoryPalettes = colorPalettes.reduce((acc: Record<string, ColorPalette[]>, palette) => {
+    const category = palette.metadata?.category?.value || 'Other'
+    if (!acc[category]) {
+      acc[category] = []
+    }
+    acc[category].push(palette)
+    return acc
+  }, {})
 
   return (
-    <div className="min-h-screen bg-studio-darker">
-      <Navigation />
-
+    <div className="min-h-screen bg-studio-darker text-white pt-20">
       <div className="max-w-7xl mx-auto px-4 py-12">
         <div className="text-center mb-12">
-          <h1 className="text-4xl font-bold text-white mb-4">Preset Looks</h1>
-          <p className="text-xl text-gray-400 max-w-3xl mx-auto">
-            Load a starting setup. You can tweak anything after.
+          <h1 className="text-4xl font-bold mb-4">Makeup Presets</h1>
+          <p className="text-gray-400 text-lg">
+            Professional looks and color palettes to inspire your creativity
           </p>
         </div>
 
-        {presets.length > 0 ? (
-          <div className="space-y-16">
-            {Object.entries(presetsByCategory).map(([category, categoryPresets]: [string, LookPreset[]]) => (
-              <div key={category}>
-                <h2 className="text-2xl font-bold text-white mb-8">{category}</h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                  {categoryPresets.map((preset: LookPreset) => (
-                    <PresetCard key={preset.id} preset={preset} />
-                  ))}
-                </div>
+        {/* Look Presets */}
+        <div className="mb-16">
+          <h2 className="text-2xl font-semibold mb-8">Look Presets</h2>
+          {Object.entries(categoryPresets).map(([category, presets]) => (
+            <div key={category} className="mb-12">
+              <h3 className="text-xl font-medium text-studio-accent mb-6">{category}</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                {presets.map((preset) => (
+                  <PresetCard key={preset.id} preset={preset} />
+                ))}
               </div>
-            ))}
-          </div>
-        ) : (
-          <div className="text-center py-16">
-            <div className="w-16 h-16 bg-studio-gray rounded-full flex items-center justify-center mx-auto mb-6">
-              <span className="text-2xl">🎨</span>
             </div>
-            <h3 className="text-xl font-medium text-white mb-2">No Presets Available</h3>
-            <p className="text-gray-400 mb-6">
-              Presets load here. Open the Presets tab to get started.
-            </p>
-            <Link 
-              href="/new" 
-              className="studio-button"
-            >
-              Create New Project
-            </Link>
-          </div>
-        )}
-
-        {/* Color Palettes Section */}
-        {palettes.length > 0 && (
-          <div className="mt-20">
-            <h2 className="text-2xl font-bold text-white mb-8">Color Palettes</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {palettes.map((palette: ColorPalette) => (
-                <div 
-                  key={palette.id} 
-                  className="bg-studio-dark rounded-lg border border-studio-gray p-6"
-                >
-                  <h3 className="font-medium text-white mb-4">{palette.metadata?.name}</h3>
-                  
-                  {/* Color Swatches */}
-                  <div className="flex gap-2 mb-4">
-                    {palette.metadata?.swatches?.map((color: string, index: number) => (
-                      <div
-                        key={index}
-                        className="w-8 h-8 rounded border border-studio-gray"
-                        style={{ backgroundColor: color }}
-                        title={color}
-                      />
-                    ))}
-                  </div>
-                  
-                  <p className="text-gray-400 text-sm mb-2">
-                    {palette.metadata?.category?.value}
-                  </p>
-                  
-                  {palette.metadata?.occasion && (
-                    <p className="text-gray-300 text-sm">
-                      Best for: {palette.metadata.occasion}
-                    </p>
-                  )}
-                  
-                  {palette.metadata?.notes && (
-                    <p className="text-gray-400 text-xs mt-3">
-                      {palette.metadata.notes}
-                    </p>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* How to Use Presets */}
-        <div className="mt-20 bg-studio-dark rounded-lg border border-studio-gray p-8">
-          <h2 className="text-2xl font-bold text-white mb-6">How to Use Presets</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            <div>
-              <div className="w-12 h-12 bg-studio-accent rounded-lg flex items-center justify-center mb-4">
-                <span className="text-white font-bold">1</span>
-              </div>
-              <h3 className="font-medium text-white mb-2">Choose a Look</h3>
-              <p className="text-gray-400 text-sm">
-                Browse our curated presets and select one that matches your desired style.
-              </p>
-            </div>
-            
-            <div>
-              <div className="w-12 h-12 bg-studio-accent rounded-lg flex items-center justify-center mb-4">
-                <span className="text-white font-bold">2</span>
-              </div>
-              <h3 className="font-medium text-white mb-2">Apply to Project</h3>
-              <p className="text-gray-400 text-sm">
-                The preset will automatically create layers with the right colors and settings.
-              </p>
-            </div>
-            
-            <div>
-              <div className="w-12 h-12 bg-studio-accent rounded-lg flex items-center justify-center mb-4">
-                <span className="text-white font-bold">3</span>
-              </div>
-              <h3 className="font-medium text-white mb-2">Customize & Refine</h3>
-              <p className="text-gray-400 text-sm">
-                Adjust colors, opacity, and add your own touches to make it perfect.
-              </p>
-            </div>
-          </div>
+          ))}
         </div>
+
+        {/* Color Palettes */}
+        <div>
+          <h2 className="text-2xl font-semibold mb-8">Color Palettes</h2>
+          {Object.entries(categoryPalettes).map(([category, palettes]) => (
+            <div key={category} className="mb-12">
+              <h3 className="text-xl font-medium text-studio-accent mb-6">{category}</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                {palettes.map((palette) => (
+                  <div key={palette.id} className="bg-studio-gray rounded-lg p-6 hover:bg-studio-gray-light transition-colors">
+                    <h4 className="text-lg font-medium mb-4">{palette.metadata?.name || palette.title}</h4>
+                    <div className="grid grid-cols-5 gap-2 mb-4">
+                      {palette.metadata?.swatches?.map((color: string, index: number) => (
+                        <div
+                          key={index}
+                          className="w-full h-12 rounded-md border border-gray-600"
+                          style={{ backgroundColor: color }}
+                          title={color}
+                        />
+                      )) || []}
+                    </div>
+                    <div className="flex justify-between items-center text-sm text-gray-400">
+                      <span>{palette.metadata?.category?.value || 'General'}</span>
+                      <span>{palette.metadata?.swatches?.length || 0} colors</span>
+                    </div>
+                    {palette.metadata?.occasion && (
+                      <div className="mt-2 text-xs text-studio-accent">
+                        {palette.metadata.occasion}
+                      </div>
+                    )}
+                    {palette.metadata?.notes && (
+                      <p className="mt-2 text-sm text-gray-300 line-clamp-2">
+                        {palette.metadata.notes}
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {(Object.keys(categoryPresets).length === 0 && Object.keys(categoryPalettes).length === 0) && (
+          <div className="text-center py-12">
+            <div className="text-gray-400 mb-4">No presets or palettes available yet.</div>
+            <p className="text-sm text-gray-500">
+              Check back later for new makeup looks and color combinations.
+            </p>
+          </div>
+        )}
       </div>
     </div>
   )

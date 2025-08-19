@@ -1,69 +1,81 @@
-import Link from 'next/link'
-import type { LookPreset } from '@/types'
+import { LookPreset } from '@/types'
 
 interface PresetCardProps {
   preset: LookPreset
 }
 
 export default function PresetCard({ preset }: PresetCardProps) {
+  const complexityColors = {
+    'Simple': 'text-green-400',
+    'Moderate': 'text-yellow-400', 
+    'Complex': 'text-red-400'
+  }
+
+  const complexityValue = preset.metadata?.complexity?.value
+  const complexityColor = complexityValue ? complexityColors[complexityValue as keyof typeof complexityColors] || 'text-gray-400' : 'text-gray-400'
+
   return (
-    <div className="preset-card">
-      {preset.metadata.preview_image && (
-        <div className="aspect-video mb-4">
-          <img
-            src={`${preset.metadata.preview_image.imgix_url}?w=600&h=400&fit=crop&auto=format,compress`}
-            alt={preset.metadata.name}
+    <div className="bg-studio-gray rounded-lg overflow-hidden hover:bg-studio-gray-light transition-all duration-300 hover:transform hover:scale-105">
+      {preset.metadata?.preview_image?.imgix_url && (
+        <div className="aspect-square overflow-hidden">
+          <img 
+            src={`${preset.metadata.preview_image.imgix_url}?w=800&h=800&fit=crop&auto=format,compress`}
+            alt={preset.title}
             className="w-full h-full object-cover"
           />
         </div>
       )}
       
       <div className="p-6">
-        <div className="flex items-start justify-between mb-3">
-          <div className="flex-1">
-            <h3 className="text-white font-medium mb-2">
-              {preset.metadata.name}
-            </h3>
-            <p className="text-gray-400 text-sm mb-3">
-              {preset.metadata.description}
-            </p>
-          </div>
-          {preset.metadata.popular && (
-            <span className="bg-studio-accent px-2 py-1 rounded text-xs text-white">
-              Popular
+        <div className="flex items-center gap-2 mb-2">
+          {preset.metadata?.complexity?.value && (
+            <span className={`text-xs font-medium px-2 py-1 rounded ${complexityColor} bg-current bg-opacity-20`}>
+              {preset.metadata.complexity.value}
+            </span>
+          )}
+          {preset.metadata?.popular && (
+            <span className="text-yellow-400 text-xs">
+              ⭐ Popular
             </span>
           )}
         </div>
         
-        <div className="flex items-center gap-2 mb-4">
-          <span className="bg-studio-gray px-2 py-1 rounded text-xs text-gray-300">
-            {preset.metadata.category?.value || 'Classic'}
-          </span>
-          <span className="bg-studio-gray px-2 py-1 rounded text-xs text-gray-300">
-            {preset.metadata.complexity?.value || 'Simple'}
-          </span>
-          <span className="text-gray-400 text-xs">
-            {preset.metadata.layers.length} layers
-          </span>
-        </div>
+        <h3 className="text-lg font-semibold text-white mb-2">
+          {preset.metadata?.name || preset.title}
+        </h3>
         
-        {/* Color Palette Preview */}
-        {preset.metadata.color_palette?.metadata?.swatches && (
-          <div className="flex gap-1 mb-4">
-            {preset.metadata.color_palette.metadata.swatches.slice(0, 5).map((color: string, index: number) => (
-              <div
-                key={index}
-                className="w-6 h-6 rounded border border-studio-gray"
-                style={{ backgroundColor: color }}
-                title={color}
-              />
-            ))}
+        {preset.metadata?.description && (
+          <p className="text-gray-400 text-sm line-clamp-2 mb-4">
+            {preset.metadata.description}
+          </p>
+        )}
+
+        {/* Color Preview */}
+        {preset.metadata?.color_palette?.metadata?.swatches && (
+          <div className="mb-4">
+            <div className="flex gap-1 mb-2">
+              {preset.metadata.color_palette.metadata.swatches.slice(0, 5).map((color: string, index: number) => (
+                <div
+                  key={index}
+                  className="w-6 h-6 rounded-full border border-gray-600 flex-shrink-0"
+                  style={{ backgroundColor: color }}
+                  title={color}
+                />
+              ))}
+            </div>
+            <span className="text-xs text-gray-400">
+              {preset.metadata.color_palette.metadata.swatches.length} colors
+            </span>
           </div>
         )}
         
-        <button className="studio-button w-full">
-          Load Preset
-        </button>
+        <div className="flex items-center justify-between">
+          {preset.metadata?.category?.value && (
+            <span className="text-studio-accent text-sm font-medium">
+              {preset.metadata.category.value}
+            </span>
+          )}
+        </div>
       </div>
     </div>
   )
