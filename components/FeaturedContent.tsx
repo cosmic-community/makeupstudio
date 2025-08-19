@@ -1,15 +1,14 @@
-import { getFeaturedLessons, getFeaturedGallery, getPopularLookPresets } from '@/lib/cosmic'
 import { Lesson, LookPreset, GalleryShowcase } from '@/types'
 import LessonCard from './LessonCard'
 import PresetCard from './PresetCard'
 
-export default async function FeaturedContent() {
-  const [lessons, presets, gallery] = await Promise.all([
-    getFeaturedLessons(),
-    getPopularLookPresets(),
-    getFeaturedGallery()
-  ])
+interface FeaturedContentProps {
+  lessons: Lesson[]
+  presets: LookPreset[]
+  gallery: GalleryShowcase[]
+}
 
+export default function FeaturedContent({ lessons, presets, gallery }: FeaturedContentProps) {
   return (
     <div className="py-20 bg-studio-dark">
       <div className="max-w-7xl mx-auto px-4">
@@ -65,7 +64,7 @@ export default async function FeaturedContent() {
                   {item.metadata?.featured_images && item.metadata.featured_images.length > 0 && (
                     <div className="aspect-square overflow-hidden">
                       <img 
-                        src={`${item.metadata.featured_images[0].imgix_url}?w=800&h=800&fit=crop&auto=format,compress`}
+                        src={`${item.metadata.featured_images[0]?.imgix_url}?w=800&h=800&fit=crop&auto=format,compress`}
                         alt={item.title}
                         className="w-full h-full object-cover"
                       />
