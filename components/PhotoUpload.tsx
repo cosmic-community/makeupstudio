@@ -3,31 +3,39 @@
 import { useState, useRef, useCallback } from 'react'
 
 interface PhotoUploadProps {
-  onPhotoSelected: (photo: File) => void
+  onPhotoSelected: (photo: File | null) => void
   selectedPhoto: File | null
 }
 
 export default function PhotoUpload({ onPhotoSelected, selectedPhoto }: PhotoUploadProps) {
   const [dragActive, setDragActive] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const validateFile = (file: File): string | null => {
     // Check file type
-    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+    if (!['image/jpeg', 'image/png', 'image/webp', 'image/jpg'].includes(file.type)) {
       return 'That file type isn\'t supported. Please use JPG, PNG, or WebP.'
     }
     
-    // Check file size (10MB max)
-    if (file.size > 10 * 1024 * 1024) {
-      return 'That file is too large. Try a smaller image.'
+    // Check file size (15MB max to be more generous)
+    if (file.size > 15 * 1024 * 1024) {
+      return 'That file is too large. Try a smaller image (max 15MB).'
+    }
+    
+    // Check minimum file size (avoid corrupted files)
+    if (file.size < 1024) {
+      return 'File appears to be corrupted or too small.'
     }
     
     return null
   }
 
-  const handleFile = useCallback((file: File) => {
+  const handleFile = useCallback(async (file: File) => {
     setError(null)
+    
+    console.log('Processing uploaded file:', file.name, file.size, 'bytes', file.type)
     
     const validationError = validateFile(file)
     if (validationError) {
@@ -35,16 +43,52 @@ export default function PhotoUpload({ onPhotoSelected, selectedPhoto }: PhotoUpl
       return
     }
 
-    // Check image dimensions
-    const img = new Image()
-    img.onload = () => {
-      if (img.width < 800) {
-        setError('Photo may be too small. Results can look blurry below 800px wide.')
-      }
+    try {
+      // Create preview URL for display
+      const previewDataUrl = URL.createObjectURL(file)
+      setPreviewUrl(previewDataUrl)
+
+      // Check image dimensions and validate the file can be loaded
+      const img = new Image()
+      await new Promise<void>((resolve, reject) => {
+        img.onload = () => {
+          console.log('Image loaded successfully, dimensions:', img.width, 'x', img.height)
+          
+          if (img.width === 0 || img.height === 0) {
+            reject(new Error('Invalid image dimensions'))
+            return
+          }
+          
+          if (img.width < 400 || img.height < 400) {
+            setError('Photo may be too small for good results. Try using an image at least 400x400 pixels.')
+          } else if (img.width < 800) {
+            setError('Photo may produce blurry results. For best quality, use images 800px wide or larger.')
+          }
+          
+          resolve()
+        }
+        
+        img.onerror = () => {
+          reject(new Error('Failed to load image file'))
+        }
+        
+        img.src = previewDataUrl
+      })
+
+      console.log('File validation successful, calling onPhotoSelected')
       onPhotoSelected(file)
+
+    } catch (error) {
+      console.error('Error processing file:', error)
+      setError('Failed to process the image file. Please try a different photo.')
+      
+      // Clean up preview URL on error
+      if (previewUrl) {
+        URL.revokeObjectURL(previewUrl)
+        setPreviewUrl(null)
+      }
     }
-    img.src = URL.createObjectURL(file)
-  }, [onPhotoSelected])
+  }, [onPhotoSelected, previewUrl])
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault()
@@ -78,6 +122,25 @@ export default function PhotoUpload({ onPhotoSelected, selectedPhoto }: PhotoUpl
     }
   }
 
+  const handleRemovePhoto = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    console.log('Removing selected photo')
+    
+    // Clean up preview URL
+    if (previewUrl) {
+      URL.revokeObjectURL(previewUrl)
+      setPreviewUrl(null)
+    }
+    
+    // Clear file input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
+    }
+    
+    setError(null)
+    onPhotoSelected(null)
+  }
+
   return (
     <div className="space-y-4">
       <div
@@ -94,7 +157,7 @@ export default function PhotoUpload({ onPhotoSelected, selectedPhoto }: PhotoUpl
         <input
           ref={fileInputRef}
           type="file"
-          accept="image/jpeg,image/png,image/webp"
+          accept="image/jpeg,image/jpg,image/png,image/webp"
           onChange={handleFileInput}
           className="hidden"
         />
@@ -108,15 +171,12 @@ export default function PhotoUpload({ onPhotoSelected, selectedPhoto }: PhotoUpl
               <h3 className="text-white font-medium mb-1">Photo Selected</h3>
               <p className="text-gray-400 text-sm">{selectedPhoto.name}</p>
               <p className="text-gray-400 text-xs">
-                {(selectedPhoto.size / 1024 / 1024).toFixed(1)}MB
+                {(selectedPhoto.size / 1024 / 1024).toFixed(1)}MB • {selectedPhoto.type}
               </p>
             </div>
             <button 
               className="text-studio-accent hover:text-studio-accent-light text-sm"
-              onClick={(e) => {
-                e.stopPropagation()
-                onPhotoSelected(null as any)
-              }}
+              onClick={handleRemovePhoto}
             >
               Choose Different Photo
             </button>
@@ -129,6 +189,9 @@ export default function PhotoUpload({ onPhotoSelected, selectedPhoto }: PhotoUpl
             <div>
               <h3 className="text-white font-medium mb-1">Drag a selfie here</h3>
               <p className="text-gray-400 text-sm">Or click to browse</p>
+              <p className="text-gray-400 text-xs mt-2">
+                Supports JPG, PNG, WebP up to 15MB
+              </p>
             </div>
           </div>
         )}

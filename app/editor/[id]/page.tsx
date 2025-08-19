@@ -31,84 +31,82 @@ export default function EditorPage({ params }: EditorPageProps) {
         console.log('Photo metadata found:', !!photoMetadataStr)
         
         if (!photoDataUrl) {
+          console.error('No photo data found in localStorage for project:', id)
           setError('No photo found for this project. Please start a new project.')
           return
         }
 
-        // Validate the photo data URL
+        // Validate the photo data URL format
         if (!photoDataUrl.startsWith('data:image/')) {
+          console.error('Invalid photo data format:', photoDataUrl.substring(0, 50))
           setError('Invalid photo data found. Please start a new project.')
           return
         }
 
-        // Test if the image can be loaded
+        console.log('Photo data URL length:', photoDataUrl.length)
+        console.log('Photo data preview:', photoDataUrl.substring(0, 100) + '...')
+
+        // Test if the image data can be loaded
         await new Promise<void>((resolve, reject) => {
           const testImg = new Image()
           testImg.onload = () => {
-            console.log('Photo data is valid, dimensions:', testImg.width, 'x', testImg.height)
+            console.log('Photo data validation successful, dimensions:', testImg.width, 'x', testImg.height)
+            
+            if (testImg.width === 0 || testImg.height === 0) {
+              reject(new Error('Photo has invalid dimensions'))
+              return
+            }
+            
             resolve()
           }
-          testImg.onerror = () => {
-            reject(new Error('Photo data is corrupted'))
+          testImg.onerror = (error) => {
+            console.error('Photo data validation failed:', error)
+            reject(new Error('Photo data is corrupted or invalid'))
           }
           testImg.src = photoDataUrl
         })
 
-        // Parse photo metadata or create default
-        let photoMetadata
+        // Parse photo metadata with fallback
+        let photoMetadata: any = {}
         if (photoMetadataStr) {
           try {
             photoMetadata = JSON.parse(photoMetadataStr)
+            console.log('Parsed photo metadata:', photoMetadata)
           } catch (parseError) {
             console.error('Error parsing photo metadata:', parseError)
-            // Create default metadata
-            photoMetadata = {
-              id: `photo_${id}`,
-              source: 'upload',
-              filename: 'photo.jpg',
-              size: 0,
-              type: 'image/jpeg',
-              capturedAt: new Date().toISOString(),
-              width: 800,
-              height: 600
-            }
-          }
-        } else {
-          // Create default metadata if none exists
-          photoMetadata = {
-            id: `photo_${id}`,
-            source: 'upload',
-            filename: 'photo.jpg',
-            size: 0,
-            type: 'image/jpeg',
-            capturedAt: new Date().toISOString(),
-            width: 800,
-            height: 600
+            console.log('Using default metadata instead')
           }
         }
 
-        // Get actual image dimensions from the data URL
-        const img = new Image()
-        await new Promise<void>((resolve) => {
+        // Get actual image dimensions from the data URL to ensure accuracy
+        const actualDimensions = await new Promise<{width: number, height: number}>((resolve) => {
+          const img = new Image()
           img.onload = () => {
-            photoMetadata.width = img.width
-            photoMetadata.height = img.height
-            resolve()
+            resolve({
+              width: img.width,
+              height: img.height
+            })
           }
           img.src = photoDataUrl
         })
 
-        // Create photo object with validated data
+        console.log('Actual image dimensions from data URL:', actualDimensions)
+
+        // Create comprehensive photo object with all required data
         const newPhoto: Photo = {
           id: photoMetadata.id || `photo_${id}`,
           source: photoMetadata.source || 'upload',
-          blobRef: photoDataUrl, // This is the validated data URL
-          width: photoMetadata.width,
-          height: photoMetadata.height,
-          capturedAt: photoMetadata.capturedAt || new Date().toISOString()
+          blobRef: photoDataUrl, // The validated data URL
+          width: actualDimensions.width,
+          height: actualDimensions.height,
+          capturedAt: photoMetadata.capturedAt || new Date().toISOString(),
+          // Additional metadata for editor
+          filename: photoMetadata.filename || 'photo.jpg',
+          size: photoMetadata.size || photoDataUrl.length,
+          type: photoMetadata.type || 'image/jpeg'
         }
         
-        console.log('Created photo object:', newPhoto)
+        console.log('Created comprehensive photo object:', newPhoto)
         setPhoto(newPhoto)
 
         // Try to load existing project from localStorage
@@ -117,6 +115,13 @@ export default function EditorPage({ params }: EditorPageProps) {
           try {
             const parsedProject = JSON.parse(savedProject) as Project
             console.log('Loaded existing project:', parsedProject)
+            
+            // Ensure the project has the correct photo ID
+            if (parsedProject.photoId !== newPhoto.id) {
+              parsedProject.photoId = newPhoto.id
+              localStorage.setItem(`project_${id}`, JSON.stringify(parsedProject))
+            }
+            
             setProject(parsedProject)
           } catch (parseError) {
             console.error('Error parsing saved project:', parseError)
@@ -148,11 +153,18 @@ export default function EditorPage({ params }: EditorPageProps) {
         }
       } catch (err) {
         console.error('Error loading project:', err)
-        if (err instanceof Error && err.message === 'Photo data is corrupted') {
-          setError('The photo data is corrupted or invalid. Please start a new project with a fresh photo.')
-        } else {
-          setError('Failed to load project. The photo data may be corrupted or missing.')
+        
+        let errorMessage = 'Failed to load project. The photo data may be corrupted or missing.'
+        
+        if (err instanceof Error) {
+          if (err.message.includes('corrupted') || err.message.includes('invalid')) {
+            errorMessage = 'The photo data is corrupted or invalid. Please start a new project with a fresh photo.'
+          } else if (err.message.includes('dimensions')) {
+            errorMessage = 'The photo has invalid dimensions. Please start a new project with a valid image.'
+          }
         }
+        
+        setError(errorMessage)
       } finally {
         setLoading(false)
       }
@@ -181,6 +193,7 @@ export default function EditorPage({ params }: EditorPageProps) {
             <span className="text-white font-bold text-xl">M</span>
           </div>
           <p className="text-white">Loading your project...</p>
+          <p className="text-gray-400 text-sm mt-2">Validating photo data...</p>
         </div>
       </div>
     )

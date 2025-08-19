@@ -3,7 +3,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 
 interface WebcamCaptureProps {
-  onPhotoSelected: (photo: File) => void
+  onPhotoSelected: (photo: File | null) => void
   selectedPhoto: File | null
 }
 
@@ -41,6 +41,8 @@ export default function WebcamCapture({ onPhotoSelected, selectedPhoto }: Webcam
       setVideoReady(false)
       setCapturedPhoto(null)
 
+      console.log('Starting camera...')
+
       // Check if getUserMedia is supported
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         throw new Error('Camera not supported by this browser')
@@ -48,13 +50,14 @@ export default function WebcamCapture({ onPhotoSelected, selectedPhoto }: Webcam
 
       const mediaStream = await navigator.mediaDevices.getUserMedia({
         video: {
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
+          width: { ideal: 1920, min: 640 },
+          height: { ideal: 1080, min: 480 },
           facingMode: 'user'
         },
         audio: false
       })
       
+      console.log('Camera stream obtained successfully')
       setStream(mediaStream)
       setLoading(false)
     } catch (err: any) {
@@ -79,6 +82,7 @@ export default function WebcamCapture({ onPhotoSelected, selectedPhoto }: Webcam
 
   const stopCamera = useCallback(() => {
     if (stream) {
+      console.log('Stopping camera stream')
       stream.getTracks().forEach(track => track.stop())
       setStream(null)
       setVideoReady(false)
@@ -86,12 +90,13 @@ export default function WebcamCapture({ onPhotoSelected, selectedPhoto }: Webcam
   }, [stream])
 
   const handleVideoReady = useCallback(() => {
+    console.log('Video stream is ready')
     setVideoReady(true)
   }, [])
 
   const takePhoto = useCallback(async () => {
     if (!videoRef.current || !canvasRef.current || !videoReady) {
-      console.error('Video or canvas not ready')
+      console.error('Video or canvas not ready for photo capture')
       return
     }
 
@@ -105,18 +110,22 @@ export default function WebcamCapture({ onPhotoSelected, selectedPhoto }: Webcam
     }
 
     setCapturing(true)
+    console.log('Starting photo capture...')
 
     try {
-      // Set canvas dimensions to match video
-      canvas.width = video.videoWidth
-      canvas.height = video.videoHeight
+      // Set canvas dimensions to match video with high quality
+      const videoWidth = video.videoWidth || video.clientWidth
+      const videoHeight = video.videoHeight || video.clientHeight
+      
+      canvas.width = videoWidth
+      canvas.height = videoHeight
 
-      console.log('Taking photo, video dimensions:', video.videoWidth, 'x', video.videoHeight)
+      console.log('Capturing photo, video dimensions:', videoWidth, 'x', videoHeight)
 
       // Draw the video frame to canvas
-      context.drawImage(video, 0, 0)
+      context.drawImage(video, 0, 0, videoWidth, videoHeight)
 
-      // Convert canvas to blob with higher quality
+      // Convert canvas to blob with high quality
       const blob = await new Promise<Blob | null>((resolve) => {
         canvas.toBlob((result) => {
           resolve(result)
@@ -124,50 +133,87 @@ export default function WebcamCapture({ onPhotoSelected, selectedPhoto }: Webcam
       })
 
       if (!blob) {
-        throw new Error('Failed to create image blob')
+        throw new Error('Failed to create image blob from canvas')
       }
 
-      console.log('Photo blob created, size:', blob.size, 'bytes')
+      console.log('Photo blob created successfully, size:', blob.size, 'bytes')
 
-      // Create file from blob with proper metadata
+      // Validate the blob
+      if (blob.size < 1024) {
+        throw new Error('Photo data appears to be corrupted or too small')
+      }
+
+      // Create file from blob with comprehensive metadata
       const timestamp = Date.now()
-      const file = new File([blob], `webcam-selfie-${timestamp}.jpg`, { 
+      const filename = `webcam-selfie-${timestamp}.jpg`
+      
+      const file = new File([blob], filename, { 
         type: 'image/jpeg',
         lastModified: timestamp
       })
 
-      console.log('Photo file created:', file.name, file.size, 'bytes')
+      console.log('Photo file created:', file.name, file.size, 'bytes', file.type)
 
-      // Verify the file can be read
+      // Verify the file can be read properly
       const reader = new FileReader()
-      reader.onload = (e) => {
-        if (e.target?.result) {
-          console.log('Photo file verification successful')
-          setCapturedPhoto(file)
-          onPhotoSelected(file)
-          stopCamera()
-        } else {
-          console.error('Photo file verification failed')
-          throw new Error('Photo file verification failed')
+      
+      const fileValidation = await new Promise<boolean>((resolve) => {
+        reader.onload = (e) => {
+          const result = e.target?.result
+          if (result && typeof result === 'string' && result.startsWith('data:image/')) {
+            console.log('Photo file validation successful, data URL length:', result.length)
+            resolve(true)
+          } else {
+            console.error('Photo file validation failed - invalid data URL')
+            resolve(false)
+          }
         }
+        reader.onerror = (error) => {
+          console.error('Photo file read error:', error)
+          resolve(false)
+        }
+        reader.readAsDataURL(file)
+      })
+
+      if (!fileValidation) {
+        throw new Error('Photo file validation failed')
       }
-      reader.onerror = () => {
-        console.error('Photo file read error')
-        throw new Error('Photo file read error')
+
+      // Additional image validation
+      const imageValidation = await new Promise<boolean>((resolve) => {
+        const img = new Image()
+        img.onload = () => {
+          console.log('Image validation successful, dimensions:', img.width, 'x', img.height)
+          resolve(img.width > 0 && img.height > 0)
+        }
+        img.onerror = () => {
+          console.error('Image validation failed')
+          resolve(false)
+        }
+        img.src = URL.createObjectURL(file)
+      })
+
+      if (!imageValidation) {
+        throw new Error('Image validation failed')
       }
-      reader.readAsDataURL(file)
+
+      console.log('All validations passed, photo is ready')
+      setCapturedPhoto(file)
+      onPhotoSelected(file)
+      stopCamera()
 
     } catch (error) {
-      console.error('Error taking photo:', error)
-      setError('Failed to capture photo. Please try again.')
+      console.error('Error during photo capture:', error)
+      setError(`Failed to capture photo: ${error instanceof Error ? error.message : 'Unknown error'}`)
     } finally {
       setCapturing(false)
     }
   }, [onPhotoSelected, stopCamera, videoReady])
 
   const retakePhoto = useCallback(() => {
+    console.log('Retaking photo')
     setCapturedPhoto(null)
-    onPhotoSelected(null as any)
+    onPhotoSelected(null)
     startCamera()
   }, [onPhotoSelected, startCamera])
 
