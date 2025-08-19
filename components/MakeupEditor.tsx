@@ -18,21 +18,24 @@ export default function MakeupEditor({
   onBack 
 }: MakeupEditorProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const imageRef = useRef<HTMLImageElement>(null)
   const [showBeforeAfter, setShowBeforeAfter] = useState(false)
   const [currentTool, setCurrentTool] = useState<'brush' | 'eraser' | 'dropper'>('brush')
   const [isLoading, setIsLoading] = useState(true)
   const [calibrationNeeded, setCalibrationNeeded] = useState(true)
   const [photoLoaded, setPhotoLoaded] = useState(false)
   const [canvasInitialized, setCanvasInitialized] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   // Initialize canvas and load photo
   const initializeCanvas = useCallback(async () => {
     if (!photo?.blobRef || !canvasRef.current) {
-      console.error('Missing photo or canvas ref')
-      return
+      console.error('Missing photo blobRef or canvas ref')
+      setError('Photo data is missing')
+      return false
     }
 
-    console.log('Initializing canvas with photo:', photo.blobRef.substring(0, 50))
+    console.log('Initializing canvas with photo data')
     
     try {
       const canvas = canvasRef.current
@@ -40,16 +43,32 @@ export default function MakeupEditor({
       
       if (!ctx) {
         console.error('Could not get canvas context')
-        return
+        setError('Canvas not supported')
+        return false
       }
 
-      // Create image from blob
+      // Validate photo data
+      if (!photo.blobRef.startsWith('data:image/')) {
+        console.error('Invalid photo data format')
+        setError('Invalid photo format')
+        return false
+      }
+
+      // Create and load image
       const img = new Image()
       
-      return new Promise<void>((resolve, reject) => {
+      return new Promise<boolean>((resolve) => {
         img.onload = () => {
           try {
-            console.log('Image loaded, dimensions:', img.width, 'x', img.height)
+            console.log('Image loaded successfully, dimensions:', img.width, 'x', img.height)
+            
+            // Validate image dimensions
+            if (img.width === 0 || img.height === 0) {
+              console.error('Image has invalid dimensions')
+              setError('Image has invalid dimensions')
+              resolve(false)
+              return
+            }
             
             // Set canvas size to match image
             canvas.width = img.width
@@ -59,27 +78,36 @@ export default function MakeupEditor({
             ctx.clearRect(0, 0, canvas.width, canvas.height)
             ctx.drawImage(img, 0, 0)
             
+            // Store reference to the image
+            if (imageRef.current) {
+              imageRef.current.src = photo.blobRef
+            }
+            
             console.log('Canvas initialized successfully')
             setPhotoLoaded(true)
             setCanvasInitialized(true)
-            resolve()
+            setError(null)
+            resolve(true)
           } catch (error) {
             console.error('Error drawing image to canvas:', error)
-            reject(error)
+            setError('Failed to display image')
+            resolve(false)
           }
         }
         
         img.onerror = (error) => {
           console.error('Error loading image:', error)
-          reject(error)
+          setError('Failed to load image data')
+          resolve(false)
         }
         
-        // Set image source
+        // Set image source to trigger load
         img.src = photo.blobRef
       })
     } catch (error) {
       console.error('Error in initializeCanvas:', error)
-      throw error
+      setError('Failed to initialize canvas')
+      return false
     }
   }, [photo])
 
@@ -88,16 +116,21 @@ export default function MakeupEditor({
     console.log('Loading progress completed, initializing canvas...')
     
     try {
-      await initializeCanvas()
-      console.log('Canvas initialization complete')
+      const success = await initializeCanvas()
+      console.log('Canvas initialization result:', success)
       
-      // Small delay to ensure everything is ready
-      setTimeout(() => {
+      if (success) {
+        // Small delay to ensure everything is ready
+        setTimeout(() => {
+          setIsLoading(false)
+          console.log('Editor ready')
+        }, 300)
+      } else {
         setIsLoading(false)
-        console.log('Editor ready')
-      }, 300)
+      }
     } catch (error) {
       console.error('Failed to initialize canvas:', error)
+      setError('Failed to initialize editor')
       setIsLoading(false)
     }
   }, [initializeCanvas])
@@ -130,6 +163,35 @@ export default function MakeupEditor({
           { name: "Final touches...", duration: 300 }
         ]}
       />
+    )
+  }
+
+  // Show error state if something went wrong
+  if (error) {
+    return (
+      <div className="min-h-screen bg-studio-darker flex items-center justify-center">
+        <div className="text-center max-w-md mx-auto px-6">
+          <div className="w-16 h-16 bg-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
+            <span className="text-white font-bold text-xl">!</span>
+          </div>
+          <h2 className="text-xl font-bold text-white mb-2">Editor Error</h2>
+          <p className="text-gray-400 mb-6">{error}</p>
+          <div className="flex gap-4 justify-center">
+            <button 
+              onClick={onBack}
+              className="studio-button"
+            >
+              Back to Home
+            </button>
+            <button 
+              onClick={() => window.location.reload()}
+              className="studio-button-secondary"
+            >
+              Reload
+            </button>
+          </div>
+        </div>
+      </div>
     )
   }
 
@@ -268,17 +330,27 @@ export default function MakeupEditor({
         <div className="flex-1 flex items-center justify-center p-8">
           <div className="canvas-container max-w-4xl w-full relative">
             {canvasInitialized && photoLoaded ? (
-              <canvas
-                ref={canvasRef}
-                className="w-full h-full object-contain max-w-full max-h-full"
-                style={{ 
-                  maxWidth: '100%', 
-                  maxHeight: 'calc(100vh - 8rem)',
-                  display: 'block'
-                }}
-              />
+              <>
+                {/* Hidden image element for reference */}
+                <img
+                  ref={imageRef}
+                  className="hidden"
+                  alt="Source photo"
+                />
+                {/* Main canvas */}
+                <canvas
+                  ref={canvasRef}
+                  className="w-full h-full object-contain max-w-full max-h-full border border-studio-gray rounded-lg"
+                  style={{ 
+                    maxWidth: '100%', 
+                    maxHeight: 'calc(100vh - 8rem)',
+                    display: 'block',
+                    background: '#1a1a1a'
+                  }}
+                />
+              </>
             ) : (
-              <div className="w-full h-96 bg-studio-dark rounded-lg flex items-center justify-center">
+              <div className="w-full h-96 bg-studio-dark rounded-lg flex items-center justify-center border border-studio-gray">
                 <div className="text-center">
                   <div className="w-12 h-12 bg-studio-accent rounded-full flex items-center justify-center mx-auto mb-3 animate-pulse-soft">
                     <span className="text-white font-bold">M</span>

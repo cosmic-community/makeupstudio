@@ -23,7 +23,7 @@ export default function EditorPage({ params }: EditorPageProps) {
       try {
         console.log('Loading project for ID:', id)
         
-        // Try to load photo data and metadata from localStorage
+        // Try to load photo data from localStorage
         const photoDataUrl = localStorage.getItem(`photo_${id}`)
         const photoMetadataStr = localStorage.getItem(`photo_metadata_${id}`)
         
@@ -35,6 +35,25 @@ export default function EditorPage({ params }: EditorPageProps) {
           return
         }
 
+        // Validate the photo data URL
+        if (!photoDataUrl.startsWith('data:image/')) {
+          setError('Invalid photo data found. Please start a new project.')
+          return
+        }
+
+        // Test if the image can be loaded
+        await new Promise<void>((resolve, reject) => {
+          const testImg = new Image()
+          testImg.onload = () => {
+            console.log('Photo data is valid, dimensions:', testImg.width, 'x', testImg.height)
+            resolve()
+          }
+          testImg.onerror = () => {
+            reject(new Error('Photo data is corrupted'))
+          }
+          testImg.src = photoDataUrl
+        })
+
         // Parse photo metadata or create default
         let photoMetadata
         if (photoMetadataStr) {
@@ -42,6 +61,7 @@ export default function EditorPage({ params }: EditorPageProps) {
             photoMetadata = JSON.parse(photoMetadataStr)
           } catch (parseError) {
             console.error('Error parsing photo metadata:', parseError)
+            // Create default metadata
             photoMetadata = {
               id: `photo_${id}`,
               source: 'upload',
@@ -54,6 +74,7 @@ export default function EditorPage({ params }: EditorPageProps) {
             }
           }
         } else {
+          // Create default metadata if none exists
           photoMetadata = {
             id: `photo_${id}`,
             source: 'upload',
@@ -66,14 +87,25 @@ export default function EditorPage({ params }: EditorPageProps) {
           }
         }
 
-        // Create photo object
+        // Get actual image dimensions from the data URL
+        const img = new Image()
+        await new Promise<void>((resolve) => {
+          img.onload = () => {
+            photoMetadata.width = img.width
+            photoMetadata.height = img.height
+            resolve()
+          }
+          img.src = photoDataUrl
+        })
+
+        // Create photo object with validated data
         const newPhoto: Photo = {
-          id: photoMetadata.id,
+          id: photoMetadata.id || `photo_${id}`,
           source: photoMetadata.source || 'upload',
-          blobRef: photoDataUrl,
-          width: photoMetadata.width || 800,
-          height: photoMetadata.height || 600,
-          capturedAt: photoMetadata.capturedAt
+          blobRef: photoDataUrl, // This is the validated data URL
+          width: photoMetadata.width,
+          height: photoMetadata.height,
+          capturedAt: photoMetadata.capturedAt || new Date().toISOString()
         }
         
         console.log('Created photo object:', newPhoto)
@@ -116,7 +148,11 @@ export default function EditorPage({ params }: EditorPageProps) {
         }
       } catch (err) {
         console.error('Error loading project:', err)
-        setError('Failed to load project. The photo data may be corrupted.')
+        if (err instanceof Error && err.message === 'Photo data is corrupted') {
+          setError('The photo data is corrupted or invalid. Please start a new project with a fresh photo.')
+        } else {
+          setError('Failed to load project. The photo data may be corrupted or missing.')
+        }
       } finally {
         setLoading(false)
       }
