@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { getLookPresets, getColorPalettes } from '@/lib/cosmic'
 import PresetCard from '@/components/PresetCard'
 import Navigation from '@/components/Navigation'
+import type { LookPreset, ColorPalette } from '@/types'
 
 export default async function PresetsPage() {
   const [presets, palettes] = await Promise.all([
@@ -10,12 +11,12 @@ export default async function PresetsPage() {
   ])
 
   // Group presets by category
-  const presetsByCategory = presets.reduce((acc, preset) => {
+  const presetsByCategory = presets.reduce((acc: Record<string, LookPreset[]>, preset: LookPreset) => {
     const category = preset.metadata.category?.value || 'Other'
     if (!acc[category]) acc[category] = []
     acc[category].push(preset)
     return acc
-  }, {} as Record<string, typeof presets>)
+  }, {} as Record<string, LookPreset[]>)
 
   return (
     <div className="min-h-screen bg-studio-darker">
@@ -31,11 +32,11 @@ export default async function PresetsPage() {
 
         {presets.length > 0 ? (
           <div className="space-y-16">
-            {Object.entries(presetsByCategory).map(([category, categoryPresets]) => (
+            {Object.entries(presetsByCategory).map(([category, categoryPresets]: [string, LookPreset[]]) => (
               <div key={category}>
                 <h2 className="text-2xl font-bold text-white mb-8">{category}</h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                  {categoryPresets.map((preset) => (
+                  {categoryPresets.map((preset: LookPreset) => (
                     <PresetCard key={preset.id} preset={preset} />
                   ))}
                 </div>
@@ -65,16 +66,16 @@ export default async function PresetsPage() {
           <div className="mt-20">
             <h2 className="text-2xl font-bold text-white mb-8">Color Palettes</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {palettes.map((palette) => (
+              {palettes.map((palette: ColorPalette) => (
                 <div 
                   key={palette.id} 
                   className="bg-studio-dark rounded-lg border border-studio-gray p-6"
                 >
-                  <h3 className="font-medium text-white mb-4">{palette.metadata.name}</h3>
+                  <h3 className="font-medium text-white mb-4">{palette.metadata?.name}</h3>
                   
                   {/* Color Swatches */}
                   <div className="flex gap-2 mb-4">
-                    {palette.metadata.swatches.map((color, index) => (
+                    {palette.metadata?.swatches?.map((color: string, index: number) => (
                       <div
                         key={index}
                         className="w-8 h-8 rounded border border-studio-gray"
@@ -85,16 +86,16 @@ export default async function PresetsPage() {
                   </div>
                   
                   <p className="text-gray-400 text-sm mb-2">
-                    {palette.metadata.category?.value}
+                    {palette.metadata?.category?.value}
                   </p>
                   
-                  {palette.metadata.occasion && (
+                  {palette.metadata?.occasion && (
                     <p className="text-gray-300 text-sm">
                       Best for: {palette.metadata.occasion}
                     </p>
                   )}
                   
-                  {palette.metadata.notes && (
+                  {palette.metadata?.notes && (
                     <p className="text-gray-400 text-xs mt-3">
                       {palette.metadata.notes}
                     </p>

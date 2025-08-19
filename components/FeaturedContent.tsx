@@ -32,7 +32,7 @@ export default function FeaturedContent({ lessons, presets, gallery }: FeaturedC
             </div>
             
             <div className="space-y-4">
-              {lessons.slice(0, 3).map((lesson) => (
+              {lessons.slice(0, 3).map((lesson: Lesson) => (
                 <div key={lesson.id} className="border-b border-studio-gray pb-4 last:border-b-0">
                   <h4 className="text-white font-medium mb-1">
                     {lesson.metadata.title}
@@ -74,7 +74,7 @@ export default function FeaturedContent({ lessons, presets, gallery }: FeaturedC
             </div>
             
             <div className="space-y-4">
-              {presets.slice(0, 3).map((preset) => (
+              {presets.slice(0, 3).map((preset: LookPreset) => (
                 <div key={preset.id} className="border-b border-studio-gray pb-4 last:border-b-0">
                   <h4 className="text-white font-medium mb-1">
                     {preset.metadata.name}
@@ -108,7 +108,7 @@ export default function FeaturedContent({ lessons, presets, gallery }: FeaturedC
             </div>
             
             <div className="space-y-4">
-              {gallery.slice(0, 1).map((showcase) => (
+              {gallery.slice(0, 1).map((showcase: GalleryShowcase) => (
                 <div key={showcase.id}>
                   {showcase.metadata.featured_images && showcase.metadata.featured_images.length > 0 && showcase.metadata.featured_images[0] && (
                     <div className="mb-4">
@@ -129,7 +129,7 @@ export default function FeaturedContent({ lessons, presets, gallery }: FeaturedC
                   
                   {showcase.metadata.techniques && (
                     <div className="flex flex-wrap gap-2">
-                      {showcase.metadata.techniques.slice(0, 3).map((technique, index) => (
+                      {showcase.metadata.techniques.slice(0, 3).map((technique: string, index: number) => (
                         <span 
                           key={index}
                           className="bg-studio-gray px-2 py-1 rounded text-xs text-gray-300"

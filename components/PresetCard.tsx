@@ -50,7 +50,7 @@ export default function PresetCard({ preset }: PresetCardProps) {
         {/* Color Palette Preview */}
         {preset.metadata.color_palette?.metadata?.swatches && (
           <div className="flex gap-1 mb-4">
-            {preset.metadata.color_palette.metadata.swatches.slice(0, 5).map((color, index) => (
+            {preset.metadata.color_palette.metadata.swatches.slice(0, 5).map((color: string, index: number) => (
               <div
                 key={index}
                 className="w-6 h-6 rounded border border-studio-gray"
